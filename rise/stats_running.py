@@ -103,7 +103,6 @@ class RunningMeanAndVarianceWelford(RunningMean, RunningVariance):
         return self.s / (self.n - 1) if self.n > 1 else torch.zeros_like(self.s)
 
 
-
 class RunningMeanSets(RunningMean):
     def __repr__(self):
         return f"RunningMeanSets(n={self.n},mean={self.mean().shape})"
@@ -154,10 +153,10 @@ class RunningMeanVarianceSets(RunningMean, RunningVariance):
 
         m = x.shape[0]
         mu_x = x.mean(dim=0)
-        if m>1:
-            v_x = x.var(dim=0, unbiased = False)
+        if m > 1:
+            v_x = x.var(dim=0, unbiased=False)
         else:
-            v_x=0
+            v_x = 0
         n = self.n
         self.n = m + n
         if n == 0:
@@ -165,7 +164,7 @@ class RunningMeanVarianceSets(RunningMean, RunningVariance):
             self.v = v_x
         else:
             c1, c2 = n / self.n, m / self.n
-            c3 = c1*c2
+            c3 = c1 * c2
             # print(c1,c2,c3)
             mu = self.mu
             self.mu = c1 * self.mu + c2 * mu_x
@@ -173,11 +172,10 @@ class RunningMeanVarianceSets(RunningMean, RunningVariance):
             # print(self.v)
 
     def var(self):
-        return self.v*self.n/(self.n-1)
+        return self.v * self.n / (self.n - 1)
 
     def mean(self):
         return self.mu
 
     def update(self, x: torch.Tensor):
-        self.update_batch(torch.unsqueeze(x,dim=0))
-
+        self.update_batch(torch.unsqueeze(x, dim=0))

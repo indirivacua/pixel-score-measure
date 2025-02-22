@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from torchvision.io import write_video
 
+
 def normalize_batch(x: torch.Tensor) -> torch.Tensor:
     """Normalizes a batch of tensors."""
     x = x.clone()
@@ -10,10 +11,11 @@ def normalize_batch(x: torch.Tensor) -> torch.Tensor:
         data[:] = (data - data.min()) / (data.max() - data.min())
     return x
 
+
 class VideoCallback:
     """A callback class for generating and saving video heatmaps."""
 
-    def __init__(self, cmap: str = 'gray', fps: int = 60) -> None:
+    def __init__(self, cmap: str = "gray", fps: int = 60) -> None:
         """Initializes the callback."""
         self.cmap = cmap
         self.fps = fps

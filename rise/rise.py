@@ -11,7 +11,7 @@ from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensor
 from captum.attr._core.feature_ablation import FeatureAblation
 from captum.log import log_usage
 
-from stats_running import RunningMeanAndVarianceWelford
+from .stats_running import RunningMeanAndVarianceWelford
 
 TupleOfTensors = Tuple[torch.Tensor]
 InputShape = Tuple[int, int]
@@ -213,7 +213,7 @@ class RISE(FeatureAblation):
     @log_usage()
     def attribute(  # type: ignore
         self,
-        input_set: TensorOrTupleOfTensorsGeneric,
+        inputs: TensorOrTupleOfTensorsGeneric,
         n_masks: int,
         initial_mask_shapes: TensorOrTupleOfTensorsGeneric,
         mask_set_config_cls: MaskSetConfig = MaskSetConfig,
@@ -245,25 +245,25 @@ class RISE(FeatureAblation):
         assert 0 < threshold <= 1, "Threshold must be in the range of 0 and 1."
 
         # Generate mask sets
-        input_set = ensure_tuple(input_set)
-        mask_set_config = mask_set_config_cls.from_input(input_set, initial_mask_shapes)
+        inputs = ensure_tuple(inputs)
+        mask_set_config = mask_set_config_cls.from_input(inputs, initial_mask_shapes)
         mask_sets = generate_mask_sets(n_masks, mask_set_config)
 
         blur_kernel_size = calculate_kernel_size(blur_sigma) if blur_sigma else None
         blurrer = T.GaussianBlur(
             kernel_size=blur_kernel_size or (1, 1), sigma=blur_sigma or 1
         )
-        blurred_input_set = tuple(blurrer(input) for input in input_set)
+        blurred_inputs = tuple(blurrer(input) for input in inputs)
 
         # initialize heatmap set
-        batch_size = input_set[0].shape[0]
+        batch_size = inputs[0].shape[0]
         heatmap_set = tuple(
             torch.zeros(batch_size, *input_shape)
             for input_shape in mask_set_config.input_shapes
         )
 
         # send heatmaps to same device as inputs
-        input_device = input_set[0].device
+        input_device = inputs[0].device
         heatmap_set = tuple_to_device(heatmap_set, input_device)
 
         if show_progress:
@@ -285,15 +285,13 @@ class RISE(FeatureAblation):
             # send mask to same device as inputs
             mask_set = tuple_to_device(mask_set, input_device)
             # generate masked inputs
-            masket_input_set = tuple(
+            masket_inputs = tuple(
                 m * input + (1 - m) * blurred_input * (blur_sigma is not None)
-                for m, input, blurred_input in zip(
-                    mask_set, input_set, blurred_input_set
-                )
+                for m, input, blurred_input in zip(mask_set, inputs, blurred_inputs)
             )
 
             # for input, blurred_input, masket_input, mask in zip(
-            #     input_set[0], blurred_input_set[0], masket_input_set[0], mask_set
+            #     inputs[0], blurred_inputs[0], masket_inputs[0], mask_set
             # ):
             #     import matplotlib.pyplot as plt
 
@@ -315,7 +313,7 @@ class RISE(FeatureAblation):
             # compute scores, obtain score for each sample in batch
             # detach to avoid computing backward and using more memory
             with torch.no_grad():
-                output = self.forward_func(*masket_input_set).detach()
+                output = self.forward_func(*masket_inputs).detach()
             mask_weight = output[range(batch_size), target]
 
             # update heatmaps with weight of mask
@@ -373,7 +371,7 @@ class RISE(FeatureAblation):
             heatmap_set = heatmap_set[0]
 
         if metrics is not None:
-            metrics['iterations'] = rise_progress.n
+            metrics["iterations"] = rise_progress.n
 
         return heatmap_set
 
@@ -381,7 +379,6 @@ class RISE(FeatureAblation):
 def generate_mask_sets(
     n_masks: int, mask_set_config: MaskSetConfig
 ) -> Generator[Tuple[torch.Tensor], None, None]:
-
     r"""returns a generator for of n_masks
     Args:
     n_masks: Number of mask sets to generate

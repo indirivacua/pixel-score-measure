@@ -15,7 +15,9 @@ class HeatmapUtils:
         return (t - t_min) / (t_max - t_min + 1e-8)
 
     @staticmethod
-    def upsample(heatmap: torch.Tensor, shape: Tuple[int, int], mode: str = "bilinear") -> torch.Tensor:
+    def upsample(
+        heatmap: torch.Tensor, shape: Tuple[int, int], mode: str = "bilinear"
+    ) -> torch.Tensor:
         return F.interpolate(heatmap, size=shape, mode=mode, align_corners=True)
 
 
@@ -60,13 +62,9 @@ class ModelAnalyzer:
         self._targets = target_idxs.squeeze()
         self._scores = scores.squeeze()
 
-        return self # fluent interface
+        return self  # fluent interface
 
-    def analyze(
-        self,
-        attribution_config: AttributionConfig,
-        **kwargs
-    ) -> torch.Tensor:
+    def analyze(self, attribution_config: AttributionConfig, **kwargs) -> torch.Tensor:
         if self._targets is None:
             raise RuntimeError("Must run forward_pass() before analyzing.")
 
@@ -76,7 +74,11 @@ class ModelAnalyzer:
 
         return heatmap
 
-    def get_activations(self, layer: nn.Module, pool: bool = False,) -> torch.Tensor:
+    def get_activations(
+        self,
+        layer: nn.Module,
+        pool: bool = False,
+    ) -> torch.Tensor:
         hook = self._ActivationHook(pool)
         hook.register(layer)
         _ = self.model(self.inputs)
