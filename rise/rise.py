@@ -285,13 +285,13 @@ class RISE(FeatureAblation):
             # send mask to same device as inputs
             mask_set = tuple_to_device(mask_set, input_device)
             # generate masked inputs
-            masket_inputs = tuple(
+            masked_inputs = tuple(
                 m * input + (1 - m) * blurred_input * (blur_sigma is not None)
                 for m, input, blurred_input in zip(mask_set, inputs, blurred_inputs)
             )
 
-            # for input, blurred_input, masket_input, mask in zip(
-            #     inputs[0], blurred_inputs[0], masket_inputs[0], mask_set
+            # for input, blurred_input, masked_input, mask in zip(
+            #     inputs[0], blurred_inputs[0], masked_inputs[0], mask_set
             # ):
             #     import matplotlib.pyplot as plt
 
@@ -303,7 +303,7 @@ class RISE(FeatureAblation):
             #     axes[0].imshow(input.permute(1, 2, 0).cpu().numpy())
             #     axes[1].imshow(blurred_input.permute(1, 2, 0).cpu().numpy())
             #     axes[2].imshow(mask.cpu().numpy(), cmap="gray")
-            #     axes[3].imshow(masket_input.permute(1, 2, 0).cpu().numpy())
+            #     axes[3].imshow(masked_input.permute(1, 2, 0).cpu().numpy())
 
             #     for ax in axes.ravel():
             #         ax.set_axis_off()
@@ -313,7 +313,7 @@ class RISE(FeatureAblation):
             # compute scores, obtain score for each sample in batch
             # detach to avoid computing backward and using more memory
             with torch.no_grad():
-                output = self.forward_func(*masket_inputs).detach()
+                output = self.forward_func(*masked_inputs).detach()
             mask_weight = output[range(batch_size), target]
 
             # update heatmaps with weight of mask
@@ -373,7 +373,7 @@ class RISE(FeatureAblation):
         if metrics is not None:
             metrics["iterations"] = rise_progress.n
 
-        return heatmap_set
+        return heatmap_set.unsqueeze(1)
 
 
 def generate_mask_sets(

@@ -13,6 +13,7 @@ class PixelScore(Metric):
         heatmaps: torch.Tensor,
         targets: torch.Tensor,
         scores: torch.Tensor,
+        blur_sigma: Optional[float] = None
     ):
         super().__init__()
         self.model = model
@@ -22,6 +23,10 @@ class PixelScore(Metric):
         self.scores = scores
         self.output_curves: Optional[torch.Tensor] = None
         self._validate_inputs()
+        self.blur_sigma = blur_sigma
+        self.blurred_inputs: Optional[torch.Tensor] = None
+        if self.blur_sigma is not None:
+            self._precompute_blurred_inputs()
 
     @staticmethod
     def validate_inputs(inputs: torch.Tensor, targets: torch.Tensor):
@@ -34,6 +39,17 @@ class PixelScore(Metric):
             raise ValueError("Heatmaps must be 4D tensor (B, C, H, W)")
         if self.inputs.device != self.heatmaps.device:
             raise ValueError("Inputs and heatmaps must be on the same device")
+
+    @staticmethod
+    def _calculate_kernel_size(sigma: float) -> int:
+        return int(2 * torch.ceil(torch.tensor(3 * sigma)).item() + 1)
+
+    def _precompute_blurred_inputs(self):
+        from torchvision.transforms import GaussianBlur
+        
+        kernel_size = self._calculate_kernel_size(self.blur_sigma)
+        blurrer = GaussianBlur(kernel_size=kernel_size, sigma=self.blur_sigma)
+        self.blurred_inputs = blurrer(self.inputs).to(self.inputs.device)
 
     @staticmethod
     def _morphology(input: torch.Tensor, mode: str) -> torch.Tensor:
@@ -93,7 +109,11 @@ class PixelScore(Metric):
 
     def _compute_score(self, batch_idx: int, mask: torch.Tensor) -> float:
         input_4d = self.inputs[batch_idx].unsqueeze(0)
-        input_masked = input_4d * mask
+        if self.blur_sigma is not None:
+            blurred_input = self.blurred_inputs[batch_idx].unsqueeze(0)
+            input_masked = mask * input_4d + (1 - mask) * blurred_input
+        else:
+            input_masked = mask * input_4d
         with torch.no_grad():
             output = self.model(input_masked)
         return output[0, self.targets[batch_idx]].item()

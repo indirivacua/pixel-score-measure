@@ -79,20 +79,19 @@ class ModelAnalyzer:
         layer: nn.Module,
         pool: bool = False,
     ) -> torch.Tensor:
-        hook = self._ActivationHook(pool)
+        hook = self._ActivationHook()
         hook.register(layer)
         _ = self.model(self.inputs)
         hook.remove()
-        return hook.activations
+        return hook.activations.mean(1, keepdim=True) if pool else hook.activations
 
     class _ActivationHook:
-        def __init__(self, pool: bool = False):
+        def __init__(self):
             self.activations = None
             self.hook_handle = None
-            self.pool = pool
 
         def __call__(self, module, input, output):
-            self.activations = output.mean(1, keepdim=True) if self.pool else output
+            self.activations = output
 
         def register(self, layer):
             self.hook_handle = layer.register_forward_hook(self)
