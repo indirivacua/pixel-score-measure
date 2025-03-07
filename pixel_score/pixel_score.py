@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from typing import List, Callable
 from typing import Optional
 from .metrics import Metric
+import matplotlib.pyplot as plt
 
 
 class PixelScore(Metric):
@@ -13,7 +14,7 @@ class PixelScore(Metric):
         heatmaps: torch.Tensor,
         targets: torch.Tensor,
         scores: torch.Tensor,
-        blur_sigma: Optional[float] = None
+        blur_sigma: Optional[float] = None,
     ):
         super().__init__()
         self.model = model
@@ -46,7 +47,7 @@ class PixelScore(Metric):
 
     def _precompute_blurred_inputs(self):
         from torchvision.transforms import GaussianBlur
-        
+
         kernel_size = self._calculate_kernel_size(self.blur_sigma)
         blurrer = GaussianBlur(kernel_size=kernel_size, sigma=self.blur_sigma)
         self.blurred_inputs = blurrer(self.inputs).to(self.inputs.device)
