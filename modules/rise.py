@@ -1,6 +1,6 @@
 import math
 
-from typing import Any, Callable, Generator, List, Tuple
+from typing import Any, Callable, Optional, Generator, List, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -217,9 +217,9 @@ class RISE(FeatureAblation):
         n_masks: int,
         initial_mask_shapes: TensorOrTupleOfTensorsGeneric,
         mask_set_config_cls: MaskSetConfig = MaskSetConfig,
-        blur_sigma: float = None,
+        blur_sigma: Optional[float] = None,
         patience: int = 128,
-        d_epsilon: float = 1e-3,
+        epsilon: float = 1e-3,
         threshold: float = 0.1,
         baselines: BaselineType = None,
         target: TargetType = None,
@@ -350,7 +350,7 @@ class RISE(FeatureAblation):
                         ],
                         dim=0,
                     )
-                    < d_epsilon
+                    < epsilon
                 )
 
                 # Calculate the mean for the boolean_tensor and checks if the truthy values are greater than the complement probability of threshold
