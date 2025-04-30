@@ -19,7 +19,7 @@ image_paths = f"{rootdb_path}/imagenet-nano3/val/image_paths.csv"
 output_path = "imagenet-nano3-1000-filtered.csv"
 labels_path = "models/imagenet_class_index.json"
 destination = "img/imagenet_filtered"
-batch_size = 16
+batch_size = 256
 score_confidence = 0.7
 
 DEVICE, DTYPE = (
@@ -144,15 +144,21 @@ for batch_start in tqdm(range(0, len(df), batch_size), desc="Processing batches"
 df_output = pd.DataFrame(df_output)
 df_output.to_csv(output_path, index=False)
 
-# Optional image saving
+# Optional image saving in batches
 save_inputs = input("Do you want to save the images? (Y/N): ")
 if save_inputs.upper() == "Y":
-    os.makedirs(destination, exist_ok=True)
-    for _, row in tqdm(df_output.iterrows(), desc="Saving images"):
-        image_path = row["Image Path"]
-        if os.path.exists(image_path):
-            image_name = os.path.basename(image_path)
-            destination_image = os.path.join(destination, image_name)
-            shutil.copy(image_path, destination_image)
-        else:
-            print(f"The image {image_path} does not exist.")
+    for batch_start in tqdm(
+        range(0, len(df_output), batch_size), desc="Saving batches"
+    ):
+        batch_end = min(batch_start + batch_size, len(df_output))
+        batch_df = df_output.iloc[batch_start:batch_end]
+        batch_idx = batch_start // batch_size
+        batch_folder = os.path.join(destination, f"batch_{batch_idx:03d}")
+        os.makedirs(batch_folder, exist_ok=True)
+        for _, row in batch_df.iterrows():
+            src = row["Image Path"]
+            if os.path.exists(src):
+                dst = os.path.join(batch_folder, os.path.basename(src))
+                shutil.copy(src, dst)
+            else:
+                print(f"The image {src} does not exist.")
