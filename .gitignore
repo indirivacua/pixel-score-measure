@@ -163,3 +163,4 @@ cython_debug/
 
 img/
 outputs*/
+nohup.out

@@ -19,7 +19,7 @@ image_paths = f"{rootdb_path}/imagenet-nano3/val/image_paths.csv"
 output_path = "imagenet-nano3-1000-filtered.csv"
 labels_path = "models/imagenet_class_index.json"
 destination = "img/imagenet_filtered"
-batch_size = 256
+batch_size = 64
 score_confidence = 0.7
 
 DEVICE, DTYPE = (

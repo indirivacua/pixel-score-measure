@@ -443,17 +443,17 @@ vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_rise_dilation.mp4")
 # In[ ]:
 
 
-mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_rise_erosion.mp4", "rb").read()
-data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
+# mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_rise_erosion.mp4", "rb").read()
+# data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
 
-HTML(
-    """
-    <video width=400 controls>
-        <source src="%s" type="video/mp4">
-    </video>
-    """
-    % data_url
-)
+# HTML(
+#     """
+#     <video width=400 controls>
+#         <source src="%s" type="video/mp4">
+#     </video>
+#     """
+#     % data_url
+# )
 
 
 # In[ ]:
@@ -495,17 +495,17 @@ vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_occ_dilation.mp4")
 # In[ ]:
 
 
-mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_occ_erosion.mp4", "rb").read()
-data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
+# mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_occ_erosion.mp4", "rb").read()
+# data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
 
-HTML(
-    """
-    <video width=400 controls>
-        <source src="%s" type="video/mp4">
-    </video>
-    """
-    % data_url
-)
+# HTML(
+#     """
+#     <video width=400 controls>
+#         <source src="%s" type="video/mp4">
+#     </video>
+#     """
+#     % data_url
+# )
 
 
 # In[ ]:
@@ -547,17 +547,17 @@ vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_gc_dilation.mp4")
 # In[ ]:
 
 
-mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_gc_erosion.mp4", "rb").read()
-data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
+# mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_gc_erosion.mp4", "rb").read()
+# data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
 
-HTML(
-    """
-    <video width=400 controls>
-        <source src="%s" type="video/mp4">
-    </video>
-    """
-    % data_url
-)
+# HTML(
+#     """
+#     <video width=400 controls>
+#         <source src="%s" type="video/mp4">
+#     </video>
+#     """
+#     % data_url
+# )
 
 
 # In[ ]:
@@ -658,53 +658,69 @@ attributions = [
 
 cols = ["CB-RISE (4x4)", "Occlusion", "Grad-CAM"]
 
-fig, axes = plt.subplots(
-    inputs.shape[0], len(attributions) * 2 + 1, constrained_layout=True
-)
-set_figsize(fig, inputs.shape[0], len(attributions) * 2 + 1)
-fig.set_dpi(300)
-# fig.subplots_adjust(hspace=0.75, wspace=0.5)
+sub_batch_size = 16
+n_images = inputs.shape[0]
+n_cols = len(attributions) * 2 + 1
 
-for i in range(inputs.shape[0]):
-    image_np = inputs[i].permute(1, 2, 0).detach().cpu().numpy()
-    axes[i, 0].imshow(image_np)
-    axes[i, 0].set_xticks([])
-    axes[i, 0].set_yticks([])
-    axes[i, 0].set_xlabel(
-        f"{analyzer.predictions[i]['label'].replace('_', ' ').title()}", fontsize=6
+for batch_start in range(0, n_images, sub_batch_size):
+    batch_end = min(batch_start + sub_batch_size, n_images)
+    curr_size = batch_end - batch_start
+
+    sub_inputs = inputs[batch_start:batch_end]
+    sub_attributions = [
+        (
+            attr[batch_start:batch_end],
+            curve[batch_start:batch_end],
+            auc[batch_start:batch_end],
+        )
+        for (attr, curve, auc) in attributions
+    ]
+    sub_preds = analyzer.predictions[batch_start:batch_end]
+
+    fig, axes = plt.subplots(curr_size, n_cols, constrained_layout=True)
+    set_figsize(fig, curr_size, n_cols)
+    fig.set_dpi(300)
+
+    for row_idx in range(curr_size):
+        i = batch_start + row_idx
+        image_np = sub_inputs[row_idx].permute(1, 2, 0).cpu().numpy()
+
+        ax = axes[row_idx, 0]
+        ax.imshow(image_np)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel(sub_preds[row_idx]["label"].replace("_", " ").title(), fontsize=6)
+
+        for j, (attr_chunk, curve_chunk, auc_chunk) in enumerate(sub_attributions):
+            col_idx = j * 2 + 1
+
+            if overlay_image:
+                axes[row_idx, col_idx].imshow(image_np)
+
+            im = axes[row_idx, col_idx].imshow(
+                attr_chunk[row_idx][0].detach().cpu().numpy(),
+                cmap="jet",
+                alpha=0.5 if overlay_image else 1,
+            )
+            axes[row_idx, col_idx].set_xticks([])
+            axes[row_idx, col_idx].set_yticks([])
+
+            plot_curve(
+                axes[row_idx, col_idx + 1],
+                curve_chunk[row_idx],
+                auc_chunk[row_idx].item(),
+                is_dilation=(SCORE_MODE == "dilation"),
+            )
+
+            if row_idx == 0:
+                axes[0, col_idx].set_title(f"{cols[j]}\nHeatmap", fontsize=7)
+                axes[0, col_idx + 1].set_title(SCORE_MODE.title(), fontsize=7)
+
+    out_file = (
+        f"{OUTPUT_PATH}/attributions_scores_{SCORE_MODE}_{batch_start}_{batch_end}.jpg"
     )
-
-    for j, (attr, curve, auc) in enumerate(attributions):
-        col_idx = j * 2 + 1
-
-        if overlay_image:
-            axes[i, col_idx].imshow(image_np)
-        im = axes[i, col_idx].imshow(
-            attr[i][0].detach().cpu().numpy(),
-            cmap="jet",
-            alpha=0.5 if overlay_image else 1,
-        )
-        # axes[i, col_idx].axis("off")
-        axes[i, col_idx].set_xticks([])
-        axes[i, col_idx].set_yticks([])
-
-        plot_curve(
-            axes[i, col_idx + 1],
-            curve[i],
-            auc[i].item(),
-            is_dilation=SCORE_MODE == "dilation",
-        )
-
-        if i == 0:
-            axes[0, col_idx].set_title(f"{cols[j]}\nHeatmap", fontsize=7)
-            axes[0, col_idx + 1].set_title(SCORE_MODE.title(), fontsize=7)
-
-plt.savefig(
-    f"{OUTPUT_PATH}/attributions_scores_{SCORE_MODE}_{len(inputs)}.jpg",
-    dpi=300,
-    bbox_inches="tight",
-)
-# plt.show()
+    plt.savefig(out_file, dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
 
 # In[ ]:
