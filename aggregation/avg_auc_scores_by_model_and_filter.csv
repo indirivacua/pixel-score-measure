@@ -1,0 +1,19 @@
+model,filter,method,avg_auc_score
+convnext_base,erosion,CB-RISE (4x4),0.4058181047439575
+convnext_base,erosion,Occlusion,0.4945245037476222
+convnext_base,erosion,Grad-CAM,0.549262672662735
+convnext_base,dilation,CB-RISE (4x4),0.2226029708981514
+convnext_base,dilation,Occlusion,0.3641690065463384
+convnext_base,dilation,Grad-CAM,0.3578559458255768
+vgg19,erosion,CB-RISE (4x4),0.6699645519256592
+vgg19,erosion,Occlusion,0.49312417209148407
+vgg19,erosion,Grad-CAM,0.47923355797926587
+vgg19,dilation,CB-RISE (4x4),0.409527321656545
+vgg19,dilation,Occlusion,0.5766975979010264
+vgg19,dilation,Grad-CAM,0.5475849409898123
+vit_l_32,erosion,CB-RISE (4x4),0.7416185140609741
+vit_l_32,erosion,Occlusion,0.51054680844148
+vit_l_32,erosion,Grad-CAM,0.5612247586250305
+vit_l_32,dilation,CB-RISE (4x4),0.35597218076388043
+vit_l_32,dilation,Occlusion,0.5152127047379812
+vit_l_32,dilation,Grad-CAM,0.4907587667306264
