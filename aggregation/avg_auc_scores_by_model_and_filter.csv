@@ -1,19 +1,19 @@
 model,filter,method,avg_auc_score
-convnext_base,erosion,CB-RISE (4x4),0.4058181047439575
-convnext_base,erosion,Occlusion,0.4945245037476222
-convnext_base,erosion,Grad-CAM,0.549262672662735
-convnext_base,dilation,CB-RISE (4x4),0.2226029708981514
-convnext_base,dilation,Occlusion,0.3641690065463384
-convnext_base,dilation,Grad-CAM,0.3578559458255768
-vgg19,erosion,CB-RISE (4x4),0.6699645519256592
-vgg19,erosion,Occlusion,0.49312417209148407
-vgg19,erosion,Grad-CAM,0.47923355797926587
-vgg19,dilation,CB-RISE (4x4),0.409527321656545
-vgg19,dilation,Occlusion,0.5766975979010264
-vgg19,dilation,Grad-CAM,0.5475849409898123
-vit_l_32,erosion,CB-RISE (4x4),0.7416185140609741
-vit_l_32,erosion,Occlusion,0.51054680844148
-vit_l_32,erosion,Grad-CAM,0.5612247586250305
-vit_l_32,dilation,CB-RISE (4x4),0.35597218076388043
-vit_l_32,dilation,Occlusion,0.5152127047379812
-vit_l_32,dilation,Grad-CAM,0.4907587667306264
+ConvNeXt-Base,erosion,CB-RISE,0.559353232383728
+ConvNeXt-Base,erosion,Occlusion,0.4856076240539551
+ConvNeXt-Base,erosion,Grad-CAM,0.5556957125663757
+ConvNeXt-Base,dilation,CB-RISE,0.2727571964263916
+ConvNeXt-Base,dilation,Occlusion,0.35290451645851134
+ConvNeXt-Base,dilation,Grad-CAM,0.3565449893474579
+ResNet101,erosion,CB-RISE,0.6778207898139954
+ResNet101,erosion,Occlusion,0.5363141894340515
+ResNet101,erosion,Grad-CAM,0.588455855846405
+ResNet101,dilation,CB-RISE,0.317437481880188
+ResNet101,dilation,Occlusion,0.5459367156028747
+ResNet101,dilation,Grad-CAM,0.4964292526245117
+ViT-L/32,erosion,CB-RISE,0.7077514052391052
+ViT-L/32,erosion,Occlusion,0.506437110900879
+ViT-L/32,erosion,Grad-CAM,0.5588944554328918
+ViT-L/32,dilation,CB-RISE,0.3844328324000041
+ViT-L/32,dilation,Occlusion,0.5240810573101043
+ViT-L/32,dilation,Grad-CAM,0.49586156010627747

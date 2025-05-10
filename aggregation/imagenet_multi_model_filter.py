@@ -13,7 +13,7 @@ torch.set_printoptions(precision=4, sci_mode=False)
 torch.set_grad_enabled(False)
 
 # Configuration
-model_names = ["vgg19", "convnext_base", "vit_l_32"]
+model_names = ["resnet101", "convnext_base", "vit_l_32"]
 rootdb_path = "/mnt/sda2/datasets/imagenet1k"
 image_paths = f"{rootdb_path}/imagenet-nano3/val/image_paths.csv"
 output_path = "imagenet-nano3-1000-filtered.csv"

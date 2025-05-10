@@ -10,7 +10,7 @@ now = datetime.now()
 date_string = now.strftime("%Y-%m-%d")
 
 # Configuración
-model_names = ["vgg19", "convnext_base", "vit_l_32"]
+model_names = ["resnet101", "convnext_base", "vit_l_32"]
 filter_options = ["erosion", "dilation"]
 combinations = list(itertools.product(model_names, filter_options))
 

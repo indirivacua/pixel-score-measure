@@ -217,10 +217,10 @@ analyzer.forward_pass(idx_to_labels)
 rise_config = AttributionConfig(
     RISE,
     n_masks=4096,
-    initial_mask_shapes=((4, 4),),
+    initial_mask_shapes=((7, 7),),
     blur_sigma=10.0,
     threshold=0.3,
-    patience=64,
+    patience=128,
     epsilon=1e-3,
     show_progress=True,
 )
@@ -656,7 +656,7 @@ attributions = [
 # In[ ]:
 
 
-cols = ["CB-RISE (4x4)", "Occlusion", "Grad-CAM"]
+cols = ["CB-RISE (7x7)", "Occlusion", "Grad-CAM"]
 
 sub_batch_size = 16
 n_images = inputs.shape[0]

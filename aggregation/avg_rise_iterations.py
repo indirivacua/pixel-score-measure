@@ -1,9 +1,11 @@
+# %%
+
 import re
 import csv
 from collections import defaultdict
 
 # Ruta a tu archivo nohup
-LOG_PATH = "nohup.out"
+LOG_PATH = "nohup_2025-05-07.out"
 # Ruta de salida
 OUTPUT_CSV = "avg_rise_iterations.csv"
 
@@ -52,3 +54,12 @@ with open(OUTPUT_CSV, "w", newline="") as csvfile:
         writer.writerow([model, filt, f"{avg_iters:.2f}", len(iters_list)])
 
 print(f"Resultados escritos en {OUTPUT_CSV}")
+
+# %%
+
+import pandas as pd
+df = pd.read_csv(OUTPUT_CSV)
+# print(df.groupby(['model', 'filter'])['avg_rise_iterations'].mean())
+print(df['avg_rise_iterations'].mean())
+
+# %%
