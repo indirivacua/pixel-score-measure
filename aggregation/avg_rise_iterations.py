@@ -10,8 +10,10 @@ LOG_PATH = "nohup_2025-05-07.out"
 OUTPUT_CSV = "avg_rise_iterations.csv"
 
 # Expresiones regulares
-header_re = re.compile(r"Model=(?P<model>\w+)\s*\|\s*Filter=(?P<filter>\w+)\s*\|\s*Batch=(?P<batch>\d+)")
-rise_re   = re.compile(r"R I S E mask.*?(\d+)/\d+")
+header_re = re.compile(
+    r"Model=(?P<model>\w+)\s*\|\s*Filter=(?P<filter>\w+)\s*\|\s*Batch=(?P<batch>\d+)"
+)
+rise_re = re.compile(r"R I S E mask.*?(\d+)/\d+")
 
 # Estructura para acumular: dict[(model,filter)] -> [list de max_iters por batch]
 data = defaultdict(list)
@@ -28,8 +30,8 @@ with open(LOG_PATH, "r") as f:
             if current_key is not None:
                 data[current_key].append(current_max)
             # Iniciamos uno nuevo
-            model  = m.group("model")
-            filt   = m.group("filter")
+            model = m.group("model")
+            filt = m.group("filter")
             current_key = (model, filt)
             current_max = 0
             continue
@@ -58,8 +60,9 @@ print(f"Resultados escritos en {OUTPUT_CSV}")
 # %%
 
 import pandas as pd
+
 df = pd.read_csv(OUTPUT_CSV)
 # print(df.groupby(['model', 'filter'])['avg_rise_iterations'].mean())
-print(df['avg_rise_iterations'].mean())
+print(df["avg_rise_iterations"].mean())
 
 # %%

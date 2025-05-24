@@ -5,7 +5,9 @@ import glob
 import csv
 
 # Directorio base que contiene las carpetas de cada modelo
-BASE_DIR = "/mnt/sda2/datasets/ostanchi/journal_outputs_2025-05-07"  # ajústalo a tu ruta
+BASE_DIR = (
+    "/mnt/sda2/datasets/ostanchi/journal_outputs_2025-05-07"  # ajústalo a tu ruta
+)
 
 # Métodos que aparecen en los archivos
 METHODS = ["CB-RISE (7x7)", "Occlusion", "Grad-CAM"]
@@ -29,7 +31,7 @@ for model_name in sorted(os.listdir(BASE_DIR)):
 
         # Acumuladores de sumas y contadores por método
         sums = {m: 0.0 for m in METHODS}
-        counts = {m: 0   for m in METHODS}
+        counts = {m: 0 for m in METHODS}
 
         # Leer cada archivo y sumar valores
         for fn in files:
@@ -44,7 +46,7 @@ for model_name in sorted(os.listdir(BASE_DIR)):
                         method = method.strip()
                         val = float(val.strip())
                         if method in sums:
-                            sums[method]  += val
+                            sums[method] += val
                             counts[method] += 1
                     except ValueError:
                         # línea inesperada, la saltamos
@@ -73,8 +75,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Configuration
-csv_path = 'avg_auc_scores_by_model_and_filter.csv'  # Update this path if needed
-output_path = 'avg_auc_scores_by_model_and_filter.jpg'
+csv_path = "avg_auc_scores_by_model_and_filter.csv"  # Update this path if needed
+output_path = "avg_auc_scores_by_model_and_filter.jpg"
 dpi = 300
 bar_width = 0.2
 figsize = (12, 6)
@@ -83,9 +85,9 @@ figsize = (12, 6)
 df = pd.read_csv(csv_path)
 
 # Extract unique values
-models = df['model'].unique()
-methods = df['method'].unique()
-filters = df['filter'].unique()
+models = df["model"].unique()
+methods = df["method"].unique()
+filters = df["filter"].unique()
 
 # Create subplots for each filter type
 fig, axes = plt.subplots(1, len(filters), figsize=figsize, sharey=True)
@@ -93,23 +95,30 @@ if len(filters) == 1:
     axes = [axes]
 
 for ax, filter_type in zip(axes, filters):
-    subset = df[df['filter'] == filter_type]
+    subset = df[df["filter"] == filter_type]
     x_positions = range(len(models))
     for i, method in enumerate(methods):
-        auc_scores = subset[subset['method'] == method]['avg_auc_score'].values
-        ax.bar([x + i * bar_width for x in x_positions], auc_scores, width=bar_width, label=method)
+        auc_scores = subset[subset["method"] == method]["avg_auc_score"].values
+        ax.bar(
+            [x + i * bar_width for x in x_positions],
+            auc_scores,
+            width=bar_width,
+            label=method,
+        )
     ax.set_title(f"{filter_type.capitalize()}")
     ax.set_xticks([x + bar_width for x in x_positions])
-    ax.set_xticklabels([m for m in models], rotation=45, ha='right') #m.replace('_', ' ').title()
-    ax.set_xlabel('Model')
-    ax.grid(axis='y', linestyle='--', linewidth=0.5)
+    ax.set_xticklabels(
+        [m for m in models], rotation=45, ha="center"
+    )  # m.replace('_', ' ').title()
+    ax.set_xlabel("Model")
+    ax.grid(axis="y", linestyle="--", linewidth=0.5)
 
-axes[0].set_ylabel('Average AUC Score')
-fig.suptitle('Average Erosion and Dilation AUC Scores by Model and Method')
-fig.legend(methods, loc='upper center', ncol=len(methods), bbox_to_anchor=(0.5, 0.05))
+axes[0].set_ylabel("Average AUC Score")
+fig.suptitle("Average Erosion and Dilation AUC Scores by Model and Method")
+fig.legend(methods, loc="upper center", ncol=len(methods), bbox_to_anchor=(0.5, 0.05))
 fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
 # Save figure without rendering
-fig.savefig(output_path, dpi=dpi, bbox_inches='tight')
+fig.savefig(output_path, dpi=dpi, bbox_inches="tight")
 
 # %%
