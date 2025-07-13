@@ -12,12 +12,12 @@ import argparse
 
 parser = argparse.ArgumentParser(description="SAM-RISE Configuration")
 parser.add_argument(
-    "--input_path", type=str, default="img/imagenet_filtered/", help="Input image path"
+    "--input_path", type=str, default="img/imagenet_filtered/batch_000", help="Input image path"
 )
 parser.add_argument(
-    "--output_path", type=str, default="outputs_test/vit_l_32", help="Output path"
+    "--output_path", type=str, default="outputs_test/resnet101", help="Output path"
 )
-parser.add_argument("--model_name", type=str, default="vit_l_32", help="Model name")
+parser.add_argument("--model_name", type=str, default="resnet101", help="Model name")
 parser.add_argument(
     "--filter_option",
     type=str,
@@ -30,7 +30,7 @@ args = parser.parse_args()
 # In[ ]:
 
 
-import torch
+# import torch
 
 # print(torch.cuda.is_available())
 # print(torch.cuda.device_count())
@@ -84,7 +84,7 @@ SEED = 42; random.seed(SEED); np.random.seed(SEED); torch.manual_seed(SEED); tor
 # In[ ]:
 
 
-df = pd.read_csv("imagenet-nano3-1000-filtered.csv")
+df = pd.read_csv("aggregation/imagenet-nano3-1000-filtered.csv")
 df["Class ID"].nunique()
 
 
@@ -152,8 +152,8 @@ inputs.shape
 # In[ ]:
 
 
-# inputs = inputs[:2]
-# inputs.shape
+inputs = inputs[:32]
+inputs.shape
 
 
 # In[ ]:
@@ -196,7 +196,7 @@ match MODEL_NAME:
 # In[ ]:
 
 
-force_computation = True
+force_computation = False 
 
 
 # In[ ]:
@@ -249,7 +249,7 @@ try:
     if force_computation:
         raise FileNotFoundError
     heatmaps = [
-        torch.load(f"{OUTPUT_PATH}/{name}.pt", map_location=DEVICE) for name in names
+        torch.load(f"{OUTPUT_PATH}/{name}.pt", map_location=DEVICE, weights_only=True) for name in names
     ]
 except:
     heatmaps = [analyzer.analyze(config) for config in configs]
@@ -604,6 +604,7 @@ def plot_curve(ax, curve_data, auc_value, is_dilation=False):
 
     ax.plot(x, y, color="tab:blue", linewidth=1)
     ax.fill_between(x, y, alpha=0.3, color="tab:blue")
+    # ax.fill_between(x[:-1], y[:-1], alpha=0.3, color="tab:blue")
 
     ax.tick_params(labelsize=6)
     ax.yaxis.set_major_formatter(tkr.FormatStrFormatter("%.2f"))

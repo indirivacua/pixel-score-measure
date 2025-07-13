@@ -168,6 +168,28 @@ class PixelScore(Metric):
         # Cálculo de AUC vectorizado
         auc = torch.trapz(y_norm, x, dim=1)
 
+        # # a = y[-1]
+        # y = y_norm
+        # pad_vals = x[:, -1].unsqueeze(1)                                 # (B, 1)
+        # mask     = x != pad_vals                                         # (B, T)
+        # # mask[:, -1] = True
+        # lengths  = mask.sum(dim=1).tolist()                              # [len0, len1, ...]
+        # x        = x.masked_select(mask).split(lengths)                  # tuple de B tensores 1D
+        # pad_vals = y[:, -1].unsqueeze(1)                                 # (B, 1)
+        # mask     = y != pad_vals                                         # (B, T)
+        # # mask[:, -1] = True
+        # lengths  = mask.sum(dim=1).tolist()                              # [len0, len1, ...]
+        # y        = y.masked_select(mask).split(lengths)                  # tuple de B tensores 1D
+        # auc = torch.empty(len(x), device=x[0].device)
+        # for i, (x_i, y_i) in enumerate(zip(x, y)):
+        #     auc[i] = torch.trapz(y_i, x_i)
+        #     # print(y_i[-1], a[i], y_i[-1] - a[i])
+        #     # auc[i] = auc[i] / abs(y_i[-1] - a[i])
+        
+        # init_mask = (self.heatmaps.squeeze(1) > 0.5).float()
+        # white_frac = init_mask.mean(dim=(1, 2))  # fracción de blancos por batch
+        # auc = auc * (1.0 - white_frac)
+
         # Manejo de casos constantes usando el último valor normalizado
         auc[constant_mask] = y_norm[constant_mask, -1]
 
