@@ -6,25 +6,24 @@ from .metrics import Metric
 import matplotlib.pyplot as plt
 
 
-class PixelScore(Metric):
+class MoprhScore(Metric):
     def __init__(
         self,
         model: torch.nn.Module,
         inputs: torch.Tensor,
         heatmaps: torch.Tensor,
         targets: torch.Tensor,
-        scores: torch.Tensor,
-        blur_sigma: Optional[float] = None,
+        **kwargs,
     ):
         super().__init__()
         self.model = model
         self.inputs = inputs
-        self.heatmaps = heatmaps
+        self.heatmaps = heatmaps.squeeze(1)  # (B, H, W)
         self.targets = targets
-        self.scores = scores
         self.output_curves: Optional[torch.Tensor] = None
+
+        self.__dict__.update(kwargs)
         self._validate_inputs()
-        self.blur_sigma = blur_sigma
         self.blurred_inputs: Optional[torch.Tensor] = None
         if self.blur_sigma is not None:
             self._precompute_blurred_inputs()
@@ -36,8 +35,10 @@ class PixelScore(Metric):
 
     def _validate_inputs(self):
         self.validate_inputs(self.inputs, self.targets)
-        if self.heatmaps.ndim != 4:
-            raise ValueError("Heatmaps must be 4D tensor (B, C, H, W)")
+        if self.heatmaps.ndim != 3:
+            raise ValueError("Heatmaps must be 3D tensor (B, H, W)")
+        if self.inputs.shape[0] != self.heatmaps.shape[0]:
+            raise ValueError("Batch size mismatch between inputs and heatmaps")
         if self.inputs.device != self.heatmaps.device:
             raise ValueError("Inputs and heatmaps must be on the same device")
 
@@ -71,20 +72,20 @@ class PixelScore(Metric):
     def _batch_morphology(
         self,
         mode: str,
-        target_fraction: float,
         threshold: float,
-        max_iter: int,
+        target_fraction: float,
+        n_steps: int,
         callbacks: List[Callable],
     ) -> torch.Tensor:
         masks = (self.heatmaps.squeeze(1) > threshold).float()
         batch_size = masks.size(0)
-        result = torch.zeros(batch_size, max_iter, 2, device=masks.device)
+        result = torch.zeros(batch_size, n_steps, 2, device=masks.device)
 
         for b in range(batch_size):
             current_mask = masks[b].float()
             history = []
 
-            for it in range(max_iter):
+            for it in range(n_steps):
                 pixel_frac = current_mask.mean()
                 if self._stop_condition(mode, pixel_frac, target_fraction):
                     break
@@ -97,7 +98,7 @@ class PixelScore(Metric):
                     callback(current_mask)
 
             # Pad and store results
-            padded_history = self._pad_history(history, max_iter, b)
+            padded_history = self._pad_history(history, n_steps, b)
             result[b] = torch.tensor(padded_history, device=masks.device)
 
         return result
@@ -130,14 +131,14 @@ class PixelScore(Metric):
 
     def update(
         self,
-        mode: str,
-        target_fraction: float = 0.5,
+        mode: str = "erode",
         threshold: float = 0.5,
-        max_iter: int = 100,
+        target_fraction: float = 0.01,
+        n_steps: int = 100,
         callbacks: Optional[List[Callable]] = None,
     ):
         self.output_curves = self._batch_morphology(
-            mode, target_fraction, threshold, max_iter, callbacks
+            mode, threshold, target_fraction, n_steps, callbacks
         )
 
     def compute(self) -> torch.Tensor:
@@ -167,28 +168,6 @@ class PixelScore(Metric):
 
         # Cálculo de AUC vectorizado
         auc = torch.trapz(y_norm, x, dim=1)
-
-        # # a = y[-1]
-        # y = y_norm
-        # pad_vals = x[:, -1].unsqueeze(1)                                 # (B, 1)
-        # mask     = x != pad_vals                                         # (B, T)
-        # # mask[:, -1] = True
-        # lengths  = mask.sum(dim=1).tolist()                              # [len0, len1, ...]
-        # x        = x.masked_select(mask).split(lengths)                  # tuple de B tensores 1D
-        # pad_vals = y[:, -1].unsqueeze(1)                                 # (B, 1)
-        # mask     = y != pad_vals                                         # (B, T)
-        # # mask[:, -1] = True
-        # lengths  = mask.sum(dim=1).tolist()                              # [len0, len1, ...]
-        # y        = y.masked_select(mask).split(lengths)                  # tuple de B tensores 1D
-        # auc = torch.empty(len(x), device=x[0].device)
-        # for i, (x_i, y_i) in enumerate(zip(x, y)):
-        #     auc[i] = torch.trapz(y_i, x_i)
-        #     # print(y_i[-1], a[i], y_i[-1] - a[i])
-        #     # auc[i] = auc[i] / abs(y_i[-1] - a[i])
-        
-        # init_mask = (self.heatmaps.squeeze(1) > 0.5).float()
-        # white_frac = init_mask.mean(dim=(1, 2))  # fracción de blancos por batch
-        # auc = auc * (1.0 - white_frac)
 
         # Manejo de casos constantes usando el último valor normalizado
         auc[constant_mask] = y_norm[constant_mask, -1]

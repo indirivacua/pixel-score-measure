@@ -1,23 +1,31 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
-# get_ipython().run_line_magic('load_ext', 'autoreload')
-# get_ipython().run_line_magic('autoreload', '2')
-# get_ipython().run_line_magic('matplotlib', 'inline')
-
+# %%
 import argparse
 
-parser = argparse.ArgumentParser(description="SAM-RISE Configuration")
+parser = argparse.ArgumentParser(description="Configuration")
 parser.add_argument(
-    "--input_path", type=str, default="img/imagenet_filtered/batch_000", help="Input image path"
+    "--input_path",
+    type=str,
+    default="img/imagenet_filtered/batch_000",
+    help="Input image path",
 )
 parser.add_argument(
-    "--output_path", type=str, default="outputs_test/resnet101", help="Output path"
+    "--output_path",
+    type=str,
+    default="outputs",
+    help="Output path",
 )
-parser.add_argument("--model_name", type=str, default="resnet101", help="Model name")
+parser.add_argument(
+    "--model_name",
+    type=str,
+    default="resnet101",
+    help="Model name",
+)
+parser.add_argument(
+    "--metric_name",
+    type=str,
+    default="morph_score",
+    help="Metric name",
+)
 parser.add_argument(
     "--filter_option",
     type=str,
@@ -26,23 +34,11 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# %%
 
-# In[ ]:
-
-
-# import torch
-
-# print(torch.cuda.is_available())
-# print(torch.cuda.device_count())
-# print(torch.cuda.current_device())
-# print(torch.cuda.device(0))
-# print(torch.cuda.get_device_name(0))
-
-
-# # Model Config
-
-# In[ ]:
-
+########################################
+######################################## Model Config
+########################################
 
 import torch
 import torch.nn as nn
@@ -60,36 +56,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-
-# In[ ]:
-
-
 torch.set_printoptions(precision=4, sci_mode=False)
-
-
-# In[ ]:
-
-
 # torch.set_grad_enabled(False)
-
-
-# In[ ]:
-
-
-# fmt: off
-SEED = 42; random.seed(SEED); np.random.seed(SEED); torch.manual_seed(SEED); torch.cuda.manual_seed_all(SEED)
-# fmt: on
-
-
-# In[ ]:
-
-
-df = pd.read_csv("aggregation/imagenet-nano3-1000-filtered.csv")
-df["Class ID"].nunique()
-
-
-# In[ ]:
-
+SEED = 42; random.seed(SEED); np.random.seed(SEED); torch.manual_seed(SEED); torch.cuda.manual_seed_all(SEED)  # fmt: skip
 
 DEVICE, DTYPE = (
     torch.device("cuda" if torch.cuda.is_available() else "cpu"),
@@ -97,8 +66,8 @@ DEVICE, DTYPE = (
 )
 MODEL_NAME = args.model_name
 INPUT_PATH = args.input_path
-OUTPUT_PATH = args.output_path
-# OUTPUT_PATH = f"{OUTPUT_ROOT}/{MODEL_NAME}"
+OUTPUT_ROOT = args.output_path
+OUTPUT_PATH = f"{OUTPUT_ROOT}/{MODEL_NAME}"
 OUTPUT_PATH_DEBUG = f"{OUTPUT_PATH}/debug"
 
 labels_path = "models/imagenet_class_index.json"
@@ -128,7 +97,7 @@ transform = transforms.Compose(
 )
 
 pytorch_total_params = sum(p.numel() for p in model.parameters())
-# print(f"Model {type(model).__name__} total parameters: ", pytorch_total_params)
+print(f"Model {type(model).__name__} total parameters: ", pytorch_total_params)
 
 with open(labels_path) as json_data:
     idx_to_labels = json.load(json_data)
@@ -146,45 +115,14 @@ for filename in sorted(os.listdir(INPUT_PATH)):
         continue
     inputs.append(image)
 inputs = torch.stack(inputs, dim=0)
-inputs.shape
+# inputs = inputs[:2]
 
+# %%
+########################################
+######################################## Attributions
+########################################
 
-# In[ ]:
-
-
-inputs = inputs[:32]
-inputs.shape
-
-
-# In[ ]:
-
-
-with torch.no_grad():
-    output = model(inputs)
-prediction_score, pred_label_idx = map(lambda x: x.squeeze_(), torch.topk(output, 1))
-
-for score, label_idx in zip(prediction_score, pred_label_idx):
-    id = label_idx.item()
-    predicted_label = get_label(id)
-    # print(f"Predicted: {predicted_label} ({id}) ({score.item():.4f})")
-
-
-# In[ ]:
-
-
-# plt.imshow(inputs[0].permute(1, 2, 0).detach().cpu().numpy())
-
-
-# # Attributions
-
-# In[ ]:
-
-
-# model
-
-
-# In[ ]:
-
+force_computation = False
 
 match MODEL_NAME:
     case "vit_l_32":
@@ -192,16 +130,7 @@ match MODEL_NAME:
     case _:
         pass
 
-
-# In[ ]:
-
-
-force_computation = False 
-
-
-# In[ ]:
-
-
+from captum.attr import visualization as viz
 from utils.model_analyzer import ModelAnalyzer, HeatmapUtils
 from utils.attr_config import AttributionConfig
 from captum.attr import Occlusion, LayerGradCam
@@ -215,7 +144,7 @@ analyzer.forward_pass(idx_to_labels)
 # last_conv_layer = conv_layers[-1]
 
 rise_config = AttributionConfig(
-    RISE,
+    attribution_class=RISE,
     n_masks=4096,
     initial_mask_shapes=((7, 7),),
     blur_sigma=10.0,
@@ -236,349 +165,63 @@ occlusion_config = AttributionConfig(
 # x.abs().mean(1, keepdim=True),
 
 gradcam_config = AttributionConfig(
-    EnhancedLayerGradCam,
+    attribution_class=EnhancedLayerGradCam,
     layer=last_conv_layer,
     relu_attributions=True,
     force_vit_mode="vit" in MODEL_NAME,
 )
 
 configs = [rise_config, occlusion_config, gradcam_config]
-names = ["heatmap_rise", "heatmap_occ", "heatmap_gc"]
 
 try:
     if force_computation:
         raise FileNotFoundError
-    heatmaps = [
-        torch.load(f"{OUTPUT_PATH}/{name}.pt", map_location=DEVICE, weights_only=True) for name in names
-    ]
+    heatmaps = {
+        str(config): torch.load(
+            f"{OUTPUT_PATH}/{str(config)}.pt", map_location=DEVICE, weights_only=True
+        )
+        for config in configs
+    }
 except:
-    heatmaps = [analyzer.analyze(config) for config in configs]
-
-[
-    torch.save(heatmap, f"{OUTPUT_PATH}/{name}.pt")
-    for heatmap, name in zip(heatmaps, names)
-]
-
-
-# In[ ]:
-
-
-analyzer.predictions
-
-
-# In[ ]:
-
-
-# from captum.attr import visualization as viz
-
-
-# In[ ]:
-
-
-# _ = viz.visualize_image_attr(
-#     heatmap_rise[0].permute(1, 2, 0).detach().cpu().numpy(),
-#     method="heat_map",
-#     sign="absolute_value",
-#     cmap="jet",
-#     show_colorbar=True,
-# )
-
-
-# In[ ]:
-
-
-# _ = viz.visualize_image_attr(
-#     heatmap_occ[0].permute(1, 2, 0).detach().cpu().numpy(),
-#     method="heat_map",
-#     sign="positive",
-#     cmap="jet",
-#     show_colorbar=True,
-# )
-
-
-# In[ ]:
-
-
-# _ = viz.visualize_image_attr(
-#     heatmap_gc[0].permute(1, 2, 0).detach().cpu().numpy(),
-#     method="heat_map",
-#     sign="positive",
-#     cmap="jet",
-#     show_colorbar=True,
-# )
-
-
-# In[ ]:
-
-
-# heatmap_rise.shape, heatmap_occ.shape, heatmap_gc.shape
-
-
-# In[ ]:
-
-
-upsample_shape = inputs.shape[-2:]
-upsample_mode = "bicubic"
-
-heatmaps = [HeatmapUtils.upsample(h, upsample_shape, upsample_mode) for h in heatmaps]
-
-
-# In[ ]:
-
-
-# heatmap_rise.shape, heatmap_occ.shape, heatmap_gc.shape
-
-
-# In[ ]:
-
-
-# (
-#     heatmap_rise.amin(dim=(1, 2, 3)),
-#     heatmap_rise.amax(dim=(1, 2, 3)),
-#     heatmap_occ.amin(dim=(1, 2, 3)),
-#     heatmap_occ.amax(dim=(1, 2, 3)),
-#     heatmap_gc.amin(dim=(1, 2, 3)),
-#     heatmap_gc.amax(dim=(1, 2, 3)),
-# )
-
-
-# In[ ]:
-
-
-heatmaps = [HeatmapUtils.normalize(h) for h in heatmaps]
-
-
-# In[ ]:
-
-
-# (
-#     heatmap_rise.amin(dim=(1, 2, 3)),
-#     heatmap_rise.amax(dim=(1, 2, 3)),
-#     heatmap_occ.amin(dim=(1, 2, 3)),
-#     heatmap_occ.amax(dim=(1, 2, 3)),
-#     heatmap_gc.amin(dim=(1, 2, 3)),
-#     heatmap_gc.amax(dim=(1, 2, 3)),
-# )
-
-
-# In[ ]:
-
-
-heatmap_rise, heatmap_occ, heatmap_gc = heatmaps
-heatmap_rise.shape, heatmap_occ.shape, heatmap_gc.shape
-
-
-# In[ ]:
-
-
-# plt.imshow(heatmap_rise[0].permute(1, 2, 0).detach().cpu().numpy(), cmap="jet")
-# plt.colorbar()
-
-
-# In[ ]:
-
-
-# plt.imshow(heatmap_occ[0].permute(1, 2, 0).detach().cpu().numpy(), cmap="jet")
-# plt.colorbar()
-
-
-# In[ ]:
-
-
-# plt.imshow(heatmap_gc[0].permute(1, 2, 0).detach().cpu().numpy(), cmap="jet")
-# plt.colorbar()
-
-
-# # Pixel Score
-
-# In[ ]:
-
+    heatmaps = {str(config): analyzer.analyze(config) for config in configs}
+    [torch.save(v, f"{OUTPUT_PATH}/{str(k)}.pt") for k, v in heatmaps.items()]
+
+heatmaps = {
+    str(k): HeatmapUtils.normalize(
+        HeatmapUtils.upsample(v, inputs.shape[-2:], "bicubic"), use_min=True
+    )
+    for k, v in heatmaps.items()
+}
+
+# %%
+########################################
+######################################## Score
+########################################
 
 from IPython.display import HTML
 from base64 import b64encode
-
 from utils.video import VideoCallback
-from pixel_score.pixel_score import PixelScore
+from metrics.morph_score import MoprhScore
 
+SCORE_KWARGS = {"scores": analyzer.scores, "blur_sigma": 10.0}
 
-# In[ ]:
-
-
-SCORE_MODE = args.filter_option
-SCORE_THRESHOLD = 0.5
-SCORE_KWARGS = {"blur_sigma": 10.0}
-overlay_image = True
-
-
-# In[ ]:
-
-
-# heatmap_rise
 vc = VideoCallback(cmap="gray")
-metric = PixelScore(
-    model, inputs, heatmap_rise, analyzer.targets, analyzer.scores, **SCORE_KWARGS
-)
-metric.update(
-    "erode",
-    target_fraction=0.01,
-    threshold=SCORE_THRESHOLD,
-    max_iter=100,
-    callbacks=[vc],
-)
-ps_erosion_curve_rise, ps_erosion_auc_rise = metric.output_curves, metric.compute()
-vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_rise_erosion.mp4")
-metric.reset()
-vc.reset()
-metric.update(
-    "dilate",
-    target_fraction=0.95,
-    threshold=SCORE_THRESHOLD,
-    max_iter=100,
-    callbacks=[vc],
-)
-ps_dilation_curve_rise, ps_dilation_auc_rise = metric.output_curves, metric.compute()
-vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_rise_dilation.mp4")
 
+scores = {k: {} for k, v in heatmaps.items()}
+for k, v in heatmaps.items():
+    metric = MoprhScore(model, inputs, v, analyzer.targets, **SCORE_KWARGS)
+    metric.update(callbacks=[vc])
+    scores[k]["curve"], scores[k]["auc"] = metric.output_curves, metric.compute()
+    vc.save_video(f"{OUTPUT_PATH_DEBUG}/{k}.mp4")
+    vc.reset()
+    metric.reset()
 
-# In[ ]:
-
-
-# mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_rise_erosion.mp4", "rb").read()
-# data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
-
-# HTML(
-#     """
-#     <video width=400 controls>
-#         <source src="%s" type="video/mp4">
-#     </video>
-#     """
-#     % data_url
-# )
-
-
-# In[ ]:
-
-
-# ps_erosion_curve_rise, ps_erosion_auc_rise
-
-
-# In[ ]:
-
-
-# heatmap_occ
-vc = VideoCallback(cmap="gray")
-metric = PixelScore(
-    model, inputs, heatmap_occ, analyzer.targets, analyzer.scores, **SCORE_KWARGS
-)
-metric.update(
-    "erode",
-    target_fraction=0.01,
-    threshold=SCORE_THRESHOLD,
-    max_iter=100,
-    callbacks=[vc],
-)
-ps_erosion_curve_occ, ps_erosion_auc_occ = metric.output_curves, metric.compute()
-vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_occ_erosion.mp4")
-metric.reset()
-vc.reset()
-metric.update(
-    "dilate",
-    target_fraction=0.95,
-    threshold=SCORE_THRESHOLD,
-    max_iter=100,
-    callbacks=[vc],
-)
-ps_dilation_curve_occ, ps_dilation_auc_occ = metric.output_curves, metric.compute()
-vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_occ_dilation.mp4")
-
-
-# In[ ]:
-
-
-# mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_occ_erosion.mp4", "rb").read()
-# data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
-
-# HTML(
-#     """
-#     <video width=400 controls>
-#         <source src="%s" type="video/mp4">
-#     </video>
-#     """
-#     % data_url
-# )
-
-
-# In[ ]:
-
-
-# ps_erosion_curve_occ, ps_erosion_auc_occ
-
-
-# In[ ]:
-
-
-# heatmap_gc
-vc = VideoCallback(cmap="gray")
-metric = PixelScore(
-    model, inputs, heatmap_gc, analyzer.targets, analyzer.scores, **SCORE_KWARGS
-)
-metric.update(
-    "erode",
-    target_fraction=0.01,
-    threshold=SCORE_THRESHOLD,
-    max_iter=100,
-    callbacks=[vc],
-)
-ps_erosion_curve_gc, ps_erosion_auc_gc = metric.output_curves, metric.compute()
-vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_gc_erosion.mp4")
-metric.reset()
-vc.reset()
-metric.update(
-    "dilate",
-    target_fraction=0.95,
-    threshold=SCORE_THRESHOLD,
-    max_iter=100,
-    callbacks=[vc],
-)
-ps_dilation_curve_gc, ps_dilation_auc_gc = metric.output_curves, metric.compute()
-vc.save_video(f"{OUTPUT_PATH_DEBUG}/heatmap_gc_dilation.mp4")
-
-
-# In[ ]:
-
-
-# mp4 = open(f"{OUTPUT_PATH_DEBUG}/heatmap_gc_erosion.mp4", "rb").read()
-# data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
-
-# HTML(
-#     """
-#     <video width=400 controls>
-#         <source src="%s" type="video/mp4">
-#     </video>
-#     """
-#     % data_url
-# )
-
-
-# In[ ]:
-
-
-# ps_erosion_curve_gc, ps_erosion_auc_gc
-
-
-# # Plots
-
-# In[ ]:
-
+# %%
+########################################
+######################################## Plots
+########################################
 
 from matplotlib import ticker as tkr
-
-
-# In[ ]:
-
-
-def get_score_value(mode, erosion_value, dilation_value):
-    return erosion_value if mode == "erosion" else dilation_value
 
 
 def set_figsize(fig, n_rows, n_columns, width_per_column=1.2, height_per_row=1.2):
@@ -587,7 +230,7 @@ def set_figsize(fig, n_rows, n_columns, width_per_column=1.2, height_per_row=1.2
     fig.set_size_inches(width, height)
 
 
-def plot_curve(ax, curve_data, auc_value, is_dilation=False):
+def plot_curve(ax, curve_data, auc_value):
     # Convertir a numpy y ordenar
     xy = curve_data.cpu().numpy()
     sorted_indices = np.argsort(xy[:, 0])
@@ -604,23 +247,17 @@ def plot_curve(ax, curve_data, auc_value, is_dilation=False):
 
     ax.plot(x, y, color="tab:blue", linewidth=1)
     ax.fill_between(x, y, alpha=0.3, color="tab:blue")
-    # ax.fill_between(x[:-1], y[:-1], alpha=0.3, color="tab:blue")
 
     ax.tick_params(labelsize=6)
+    ax.xaxis.set_major_formatter(tkr.FormatStrFormatter("%.2f"))
     ax.yaxis.set_major_formatter(tkr.FormatStrFormatter("%.2f"))
 
     ax.set_ylim(0, 1)
     ax.set_xlim(0, 1)
 
-    try:
-        if not is_dilation:
-            ax.invert_xaxis()
-            ax.axvline(x[-2], color="r", linestyle="--", linewidth=1)
-        else:
-            ax.set_xticks([0.0, x[0], 0.5, 1.0])
-            ax.xaxis.set_major_formatter(tkr.FormatStrFormatter("%.2f"))
-    except IndexError:
-        pass
+    ax.invert_xaxis()
+    ax.axvline(x[-2], color="r", linestyle="--", linewidth=1)
+    # ax.set_xticks([0.0, x[-2], 0.5, 1.0])
 
     ax.text(
         0.40,
@@ -632,32 +269,23 @@ def plot_curve(ax, curve_data, auc_value, is_dilation=False):
     )
 
 
-# In[ ]:
+try:
+    with open(
+        f"{OUTPUT_PATH}/attributions_scores_{str(metric)}_{len(inputs)}.pkl", "rb"
+    ) as f:
+        data = pickle.load(f)
+        inputs, attributions, predictions = (
+            data["inputs"],
+            data["attributions"],
+            data["predictions"],
+        )
+except:
+    attributions = [
+        (h, s["curve"], s["auc"]) for h, s in zip(heatmaps.values(), scores.values())
+    ]
 
-
-attributions = [
-    (
-        heatmap_rise,
-        get_score_value(SCORE_MODE, ps_erosion_curve_rise, ps_dilation_curve_rise),
-        get_score_value(SCORE_MODE, ps_erosion_auc_rise, ps_dilation_auc_rise),
-    ),
-    (
-        heatmap_occ,
-        get_score_value(SCORE_MODE, ps_erosion_curve_occ, ps_dilation_curve_occ),
-        get_score_value(SCORE_MODE, ps_erosion_auc_occ, ps_dilation_auc_occ),
-    ),
-    (
-        heatmap_gc,
-        get_score_value(SCORE_MODE, ps_erosion_curve_gc, ps_dilation_curve_gc),
-        get_score_value(SCORE_MODE, ps_erosion_auc_gc, ps_dilation_auc_gc),
-    ),
-]
-
-
-# In[ ]:
-
-
-cols = ["CB-RISE (7x7)", "Occlusion", "Grad-CAM"]
+overlay_image = True
+cols = list(heatmaps.keys())
 
 sub_batch_size = 16
 n_images = inputs.shape[0]
@@ -710,35 +338,26 @@ for batch_start in range(0, n_images, sub_batch_size):
                 axes[row_idx, col_idx + 1],
                 curve_chunk[row_idx],
                 auc_chunk[row_idx].item(),
-                is_dilation=(SCORE_MODE == "dilation"),
             )
 
             if row_idx == 0:
                 axes[0, col_idx].set_title(f"{cols[j]}\nHeatmap", fontsize=7)
-                axes[0, col_idx + 1].set_title(SCORE_MODE.title(), fontsize=7)
+                axes[0, col_idx + 1].set_title(str(metric), fontsize=7)
 
     out_file = (
-        f"{OUTPUT_PATH}/attributions_scores_{SCORE_MODE}_{batch_start}_{batch_end}.jpg"
+        f"{OUTPUT_PATH}/attributions_scores_{str(metric)}_{batch_start}_{batch_end}.jpg"
     )
     plt.savefig(out_file, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-
-# In[ ]:
-
-
 for col, (_, _, auc) in zip(cols, attributions):
     print(
         f"{col}: {auc.mean().item()}",
-        file=open(f"{OUTPUT_PATH}/auc_scores_avg_{SCORE_MODE}_{len(inputs)}.txt", "a"),
+        file=open(f"{OUTPUT_PATH}/auc_scores_avg_{str(metric)}_{len(inputs)}.txt", "a"),
     )
 
-
-# In[ ]:
-
-
 with open(
-    f"{OUTPUT_PATH}/attributions_scores_{SCORE_MODE}_{len(inputs)}.pkl", "wb"
+    f"{OUTPUT_PATH}/attributions_scores_{str(metric)}_{len(inputs)}.pkl", "wb"
 ) as f:
     pickle.dump(
         {
@@ -748,18 +367,3 @@ with open(
         },
         f,
     )
-
-
-# In[ ]:
-
-
-# with open(
-#     f"{OUTPUT_PATH}/attributions_scores_{SCORE_MODE}_{len(inputs)}.pkl", "rb"
-# ) as f:
-#     data = pickle.load(f)
-#     inputs = data["inputs"]
-#     attributions = data["attributions"]
-#     predictions = data["predictions"]
-
-
-# In[ ]:

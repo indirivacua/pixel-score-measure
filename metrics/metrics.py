@@ -23,3 +23,6 @@ class Metric(ABC):
     @abstractmethod
     def validate_inputs(inputs: torch.Tensor, targets: torch.Tensor):
         pass
+
+    def __str__(self):
+        return f"{self.__class__.__name__}"

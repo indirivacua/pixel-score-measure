@@ -7,12 +7,12 @@ from .attr_config import AttributionConfig
 
 class HeatmapUtils:
     @staticmethod
-    def normalize(t: torch.Tensor) -> torch.Tensor:
+    def normalize(t: torch.Tensor, use_min: bool = True) -> torch.Tensor:
         t = t.clone()
         dims = tuple(range(1, t.ndim))  # Preserve the batch dimension
         t_min = t.amin(dim=dims, keepdim=True)
         t_max = t.amax(dim=dims, keepdim=True)
-        return (t - t_min) / (t_max - t_min + 1e-8)
+        return (t - t_min) / (t_max - t_min + 1e-8) if use_min else t / (t_max + 1e-8)
 
     @staticmethod
     def upsample(
