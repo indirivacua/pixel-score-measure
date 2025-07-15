@@ -136,6 +136,7 @@ from utils.attr_config import AttributionConfig
 from captum.attr import Occlusion, LayerGradCam
 from modules.rise import RISE
 from modules.grad_cam import EnhancedLayerGradCam
+import importlib, inspect
 
 analyzer = ModelAnalyzer(model, inputs)
 analyzer.forward_pass(idx_to_labels)
@@ -171,7 +172,14 @@ gradcam_config = AttributionConfig(
     force_vit_mode="vit" in MODEL_NAME,
 )
 
-configs = [rise_config, occlusion_config, gradcam_config]
+baselines = importlib.import_module("modules.baselines")
+baselines_configs = [
+    AttributionConfig(attribution_class=cls)
+    for name, cls in inspect.getmembers(baselines, inspect.isclass)
+    if cls.__module__ == "modules.baselines"
+]
+
+configs = [gradcam_config, occlusion_config, rise_config, *baselines_configs]
 
 try:
     if force_computation:
@@ -183,7 +191,8 @@ try:
         for config in configs
     }
 except:
-    heatmaps = {str(config): analyzer.analyze(config) for config in configs}
+    heatmaps = {"Activations": -analyzer.get_activations(last_conv_layer, pool=True)}
+    heatmaps.update({str(config): analyzer.analyze(config) for config in configs})
     [torch.save(v, f"{OUTPUT_PATH}/{str(k)}.pt") for k, v in heatmaps.items()]
 
 heatmaps = {
@@ -203,7 +212,7 @@ from base64 import b64encode
 from utils.video import VideoCallback
 from metrics.morph_score import MoprhScore
 
-SCORE_KWARGS = {"scores": analyzer.scores, "blur_sigma": 10.0}
+SCORE_KWARGS = {"scores": analyzer.scores, "blur_sigma": 50.0}
 
 vc = VideoCallback(cmap="gray")
 
@@ -256,8 +265,11 @@ def plot_curve(ax, curve_data, auc_value):
     ax.set_xlim(0, 1)
 
     ax.invert_xaxis()
-    ax.axvline(x[-2], color="r", linestyle="--", linewidth=1)
-    # ax.set_xticks([0.0, x[-2], 0.5, 1.0])
+    try:
+        ax.axvline(x[-2], color="r", linestyle="--", linewidth=1)
+        ax.set_xticks([x[-2], 0.0, 0.5, 1.0])
+    except:
+        pass
 
     ax.text(
         0.40,
@@ -270,6 +282,8 @@ def plot_curve(ax, curve_data, auc_value):
 
 
 try:
+    if force_computation:
+        raise FileNotFoundError
     with open(
         f"{OUTPUT_PATH}/attributions_scores_{str(metric)}_{len(inputs)}.pkl", "rb"
     ) as f:

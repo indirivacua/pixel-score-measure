@@ -35,6 +35,9 @@ class VideoCallback:
 
     def save_video(self, path: str) -> None:
         """Saves the generated heatmaps as a video."""
+        if len(self.heatmaps) == 0:
+            dummy_frame = torch.zeros((224, 224, 3), dtype=torch.uint8)
+            self.heatmaps.append(dummy_frame)
         # Stack heatmaps into a tensor
         heatmaps = torch.stack(self.heatmaps, dim=0)
 
