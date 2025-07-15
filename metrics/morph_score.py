@@ -6,7 +6,7 @@ from .metrics import Metric
 import matplotlib.pyplot as plt
 
 
-class MoprhScore(Metric):
+class MorphScore(Metric):
     def __init__(
         self,
         model: torch.nn.Module,
@@ -158,8 +158,8 @@ class MoprhScore(Metric):
         )
 
         # Normalización vectorizada
-        y_min = y.min(dim=1, keepdim=True)[0]
-        y_max = y.max(dim=1, keepdim=True)[0]
+        y_min = y.min(dim=1, keepdim=True)[0] * 0
+        y_max = y.max(dim=1, keepdim=True)[0] * 0 + 1
         y_range = y_max - y_min + 1e-8  # Evitar división por cero
         y_norm = (y - y_min) / y_range
 

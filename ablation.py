@@ -23,7 +23,7 @@ parser.add_argument(
 parser.add_argument(
     "--metric_name",
     type=str,
-    default="morph_score",
+    default="morph",
     help="Metric name",
 )
 parser.add_argument(
@@ -148,7 +148,7 @@ rise_config = AttributionConfig(
     attribution_class=RISE,
     n_masks=4096,
     initial_mask_shapes=((7, 7),),
-    blur_sigma=10.0,
+    blur_sigma=50.0,
     threshold=0.3,
     patience=128,
     epsilon=1e-3,
@@ -210,18 +210,28 @@ heatmaps = {
 from IPython.display import HTML
 from base64 import b64encode
 from utils.video import VideoCallback
-from metrics.morph_score import MoprhScore
+from metrics.morph_score import MorphScore
+from metrics.importance_score import ImportanceScore
 
 SCORE_KWARGS = {"scores": analyzer.scores, "blur_sigma": 50.0}
+
+# args.metric_name = "importance"
+match args.metric_name:
+    case "morph":
+        SCORE_CLASS = MorphScore
+    case "importance":
+        SCORE_CLASS = ImportanceScore
+    case _:
+        raise ValueError(f"Unsupported metric name: {args.metric_name}")
 
 vc = VideoCallback(cmap="gray")
 
 scores = {k: {} for k, v in heatmaps.items()}
 for k, v in heatmaps.items():
-    metric = MoprhScore(model, inputs, v, analyzer.targets, **SCORE_KWARGS)
+    metric = SCORE_CLASS(model, inputs, v, analyzer.targets, **SCORE_KWARGS)
     metric.update(callbacks=[vc])
     scores[k]["curve"], scores[k]["auc"] = metric.output_curves, metric.compute()
-    vc.save_video(f"{OUTPUT_PATH_DEBUG}/{k}.mp4")
+    # vc.save_video(f"{OUTPUT_PATH_DEBUG}/{k}.mp4")
     vc.reset()
     metric.reset()
 
@@ -367,7 +377,9 @@ for batch_start in range(0, n_images, sub_batch_size):
 for col, (_, _, auc) in zip(cols, attributions):
     print(
         f"{col}: {auc.mean().item()}",
-        file=open(f"{OUTPUT_PATH}/auc_scores_avg_{str(metric)}_{len(inputs)}.txt", "a"),
+        file=open(
+            f"{OUTPUT_PATH}/attributions_scores_{str(metric)}_{len(inputs)}.txt", "a"
+        ),
     )
 
 with open(

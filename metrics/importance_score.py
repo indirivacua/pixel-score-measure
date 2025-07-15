@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 from typing import List, Callable, Optional
 from .metrics import Metric
-from torchvision.transforms import GaussianBlur
 
 
 class ImportanceScore(Metric):
@@ -46,6 +45,8 @@ class ImportanceScore(Metric):
         return int(2 * torch.ceil(torch.tensor(3 * sigma)).item() + 1)
 
     def _precompute_blurred_inputs(self):
+        from torchvision.transforms import GaussianBlur
+
         kernel_size = self._calculate_kernel_size(self.blur_sigma)
         blurrer = GaussianBlur(kernel_size=kernel_size, sigma=self.blur_sigma)
         self.blurred_inputs = blurrer(self.inputs).to(self.inputs.device)
@@ -92,6 +93,7 @@ class ImportanceScore(Metric):
             )  # Broadcast to spatial dims
 
             # Apply mask to inputs
+            mask = mask.float()
             if self.blur_sigma is not None:
                 masked_inputs = (
                     mask.unsqueeze(1) * self.inputs
@@ -112,7 +114,7 @@ class ImportanceScore(Metric):
             # Execute callbacks if provided
             if callbacks:
                 for callback in callbacks:
-                    callback(mask, step)
+                    callback(mask)
 
         self.output_curves = curves
 
@@ -121,7 +123,7 @@ class ImportanceScore(Metric):
             raise RuntimeError("Must run update() before computing AUC.")
 
         curves = self.output_curves
-        batch_size = curves.shape[0]
+        batch_size, steps, _ = curves.shape
 
         # Determine min and max scores for normalization
         score_min = torch.where(
@@ -137,13 +139,16 @@ class ImportanceScore(Metric):
 
         # Normalize scores
         y = curves[:, :, 1]
-        y_min = score_min.view(-1, 1)
-        y_max = score_max.view(-1, 1)
+        y_min = score_min.view(-1, 1) * 0
+        y_max = score_max.view(-1, 1) * 0 + 1
         y_norm = (y - y_min) / (y_max - y_min + 1e-8)
+
+        # CORRECCIÓN: Expandir la condición para que coincida con las dimensiones
+        cond = (curves[:, 0, 0] == 1.0).view(-1, 1).expand(-1, steps)
 
         # Create x-axis (revealed fraction)
         x = torch.where(
-            curves[:, 0, 0] == 1.0,  # LIF mode
+            cond,  # Ahora tiene tamaño (batch_size, steps)
             1 - curves[:, :, 0],  # Revealed = removed fraction
             curves[:, :, 0],  # MIF: revealed = preserved fraction
         )
