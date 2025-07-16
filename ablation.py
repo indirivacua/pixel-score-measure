@@ -215,7 +215,7 @@ from metrics.importance_score import ImportanceScore
 
 SCORE_KWARGS = {"scores": analyzer.scores, "blur_sigma": 50.0}
 
-# args.metric_name = "importance"
+args.metric_name = "importance"
 match args.metric_name:
     case "morph":
         SCORE_CLASS = MorphScore

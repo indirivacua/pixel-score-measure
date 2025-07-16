@@ -64,7 +64,14 @@ class ImportanceScore(Metric):
 
         # Precompute sorted heatmaps
         heatmaps_flat = self.heatmaps.view(batch_size, -1)  # (B, H*W)
-        sorted_heatmaps, _ = torch.sort(heatmaps_flat, dim=1)  # Ascending: min to max
+
+        random_values = torch.rand(heatmaps_flat.shape, device=device)
+        tie_breaker = 1e-6 * random_values
+        heatmaps_with_tie_break = heatmaps_flat + tie_breaker
+
+        sorted_heatmaps, _ = torch.sort(
+            heatmaps_with_tie_break, dim=1
+        )  # Ascending: min to max
 
         # Initialize output curves tensor: (B, steps, 2) -> [fraction, score]
         curves = torch.zeros((batch_size, steps, 2), device=device)

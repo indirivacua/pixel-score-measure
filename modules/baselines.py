@@ -1,3 +1,4 @@
+import math
 import torch
 from captum.attr import Attribution
 from typing import Any, Callable, Optional, Tuple, Union
@@ -140,3 +141,63 @@ class NormalAttribution(Attribution):
         heatmaps = heatmaps / heatmaps.sum(dim=(2, 3), keepdim=True)
 
         return heatmaps
+
+
+class CentralAttribution(Attribution):
+    def __init__(self, forward_func: Callable, percentage: float = 0.1):
+        """
+        Atribución que activa un cuadrado central de píxeles, cubriendo un porcentaje dado del total.
+
+        Args:
+            forward_func (Callable): Función de forward del modelo
+            percentage (float): Fracción de píxeles totales que debe cubrir el cuadrado central (entre 0 y 1)
+        """
+        super().__init__(forward_func)
+        self.percentage = percentage
+
+    def attribute(
+        self,
+        inputs: Tensor,
+        baselines: Optional[Tensor] = None,
+        target: Optional[int] = None,
+        additional_forward_args: Any = None,
+        **kwargs
+    ) -> Tensor:
+        """
+        Genera heatmaps con una región cuadrada central activa.
+
+        Args:
+            inputs (Tensor): Tensor de entrada con forma (B, C, H, W)
+            **kwargs: Argumentos adicionales (ignorados)
+
+        Returns:
+            Tensor: Heatmaps con forma (B, 1, H, W)
+        """
+        B, C, H, W = inputs.shape
+        device = inputs.device
+        dtype = inputs.dtype
+
+        # Manejar caso de porcentaje cero
+        if self.percentage <= 0:
+            return torch.zeros(B, 1, H, W, device=device, dtype=dtype)
+
+        # Calcular número total de píxeles y tamaño del cuadrado central
+        total_pixels = H * W
+        k = self.percentage * total_pixels
+
+        # Calcular lado del cuadrado (redondeado al entero más cercano)
+        s = round(math.sqrt(k))
+        s = int(max(1, min(s, min(H, W))))  # Asegurar tamaño válido [1, min(H,W)]
+
+        # Calcular coordenadas del cuadrado central
+        top = (H - s) // 2
+        left = (W - s) // 2
+
+        # Crear heatmap con cuadrado central
+        heatmap = torch.zeros(B, 1, H, W, device=device, dtype=dtype)
+        heatmap[:, :, top : top + s, left : left + s] = 1.0
+
+        # Normalizar para formar distribución de probabilidad
+        heatmap = heatmap / (s * s)
+
+        return heatmap
