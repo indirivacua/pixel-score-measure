@@ -135,7 +135,8 @@ from utils.model_analyzer import ModelAnalyzer, HeatmapUtils
 from utils.attr_config import AttributionConfig
 from captum.attr import Occlusion, LayerGradCam
 from modules.rise import RISE
-from modules.grad_cam import EnhancedLayerGradCam
+from modules.gradcam import EnhancedLayerGradCam
+from modules.activations import Activations
 import importlib, inspect
 
 analyzer = ModelAnalyzer(model, inputs)
@@ -165,6 +166,12 @@ occlusion_config = AttributionConfig(
 )
 # x.abs().mean(1, keepdim=True),
 
+activations_config = AttributionConfig(
+    attribution_class=Activations,
+    layer=last_conv_layer,
+    average_across_channels=True,
+)
+
 gradcam_config = AttributionConfig(
     attribution_class=EnhancedLayerGradCam,
     layer=last_conv_layer,
@@ -179,7 +186,7 @@ baselines_configs = [
     if cls.__module__ == "modules.baselines"
 ]
 
-configs = [gradcam_config, occlusion_config, rise_config, *baselines_configs]
+configs = [activations_config, gradcam_config, occlusion_config, rise_config, *baselines_configs]
 
 try:
     if force_computation:
@@ -191,10 +198,10 @@ try:
         for config in configs
     }
 except:
-    heatmaps = {"Activations": -analyzer.get_activations(last_conv_layer, pool=True)}
-    heatmaps.update({str(config): analyzer.analyze(config) for config in configs})
+    heatmaps = {str(config): analyzer.analyze(config) for config in configs}
     [torch.save(v, f"{OUTPUT_PATH}/{str(k)}.pt") for k, v in heatmaps.items()]
 
+heatmaps['Activations'] *= -1 #fix
 heatmaps = {
     str(k): HeatmapUtils.normalize(
         HeatmapUtils.upsample(v, inputs.shape[-2:], "bicubic"), use_min=True
@@ -230,8 +237,8 @@ scores = {k: {} for k, v in heatmaps.items()}
 for k, v in heatmaps.items():
     metric = SCORE_CLASS(model, inputs, v, analyzer.targets, **SCORE_KWARGS)
     metric.update(callbacks=[vc])
-    scores[k]["curve"], scores[k]["auc"] = metric.output_curves, metric.compute()
-    # vc.save_video(f"{OUTPUT_PATH_DEBUG}/{k}.mp4")
+    scores[k] = { "curve": metric.output_curves, "auc": metric.compute() }
+    vc.save_videos(f"{OUTPUT_PATH_DEBUG}/{str(metric)}", prefix=k)
     vc.reset()
     metric.reset()
 

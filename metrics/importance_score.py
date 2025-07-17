@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from typing import List, Callable, Optional
 from .metrics import Metric
+from torchvision.transforms import GaussianBlur
 
 
 class ImportanceScore(Metric):
@@ -45,8 +46,6 @@ class ImportanceScore(Metric):
         return int(2 * torch.ceil(torch.tensor(3 * sigma)).item() + 1)
 
     def _precompute_blurred_inputs(self):
-        from torchvision.transforms import GaussianBlur
-
         kernel_size = self._calculate_kernel_size(self.blur_sigma)
         blurrer = GaussianBlur(kernel_size=kernel_size, sigma=self.blur_sigma)
         self.blurred_inputs = blurrer(self.inputs).to(self.inputs.device)
@@ -62,7 +61,6 @@ class ImportanceScore(Metric):
         steps = n_steps + 1
         device = self.inputs.device
 
-        # Precompute sorted heatmaps
         heatmaps_flat = self.heatmaps.view(batch_size, -1)  # (B, H*W)
 
         random_values = torch.rand(heatmaps_flat.shape, device=device)
@@ -73,7 +71,6 @@ class ImportanceScore(Metric):
             heatmaps_with_tie_break, dim=1
         )  # Ascending: min to max
 
-        # Initialize output curves tensor: (B, steps, 2) -> [fraction, score]
         curves = torch.zeros((batch_size, steps, 2), device=device)
 
         # Set fraction progression based on mode
@@ -88,7 +85,6 @@ class ImportanceScore(Metric):
         else:
             raise ValueError("mode must be 'lif' or 'mif'")
 
-        # Process each step
         for step in range(steps):
             f = fractions[step].item()
             idx = max(0, min(total_pixels - 1, int((1 - f) * total_pixels)))
@@ -99,7 +95,6 @@ class ImportanceScore(Metric):
                 -1, 1, 1
             )  # Broadcast to spatial dims
 
-            # Apply mask to inputs
             mask = mask.float()
             if self.blur_sigma is not None:
                 masked_inputs = (
@@ -109,16 +104,13 @@ class ImportanceScore(Metric):
             else:
                 masked_inputs = mask.unsqueeze(1) * self.inputs
 
-            # Compute model outputs
             with torch.no_grad():
                 outputs = self.model(masked_inputs)
             scores = outputs[torch.arange(batch_size), self.targets]  # (B,)
 
-            # Store results
             curves[:, step, 0] = f
             curves[:, step, 1] = scores
 
-            # Execute callbacks if provided
             if callbacks:
                 for callback in callbacks:
                     callback(mask)
@@ -132,36 +124,16 @@ class ImportanceScore(Metric):
         curves = self.output_curves
         batch_size, steps, _ = curves.shape
 
-        # Determine min and max scores for normalization
-        score_min = torch.where(
-            curves[:, 0, 0] == 0.0,  # First step fraction (MIF start=0, LIF start=1)
-            curves[:, 0, 1],  # MIF: score at f=0
-            curves[:, -1, 1],  # LIF: score at f=0 (last step)
-        )
-        score_max = torch.where(
-            curves[:, 0, 0] == 1.0,  # First step fraction (LIF start=1, MIF start=0)
-            curves[:, 0, 1],  # LIF: score at f=1
-            curves[:, -1, 1],  # MIF: score at f=1 (last step)
-        )
-
-        # Normalize scores
-        y = curves[:, :, 1]
-        y_min = score_min.view(-1, 1) * 0
-        y_max = score_max.view(-1, 1) * 0 + 1
-        y_norm = (y - y_min) / (y_max - y_min + 1e-8)
-
-        # CORRECCIÓN: Expandir la condición para que coincida con las dimensiones
         cond = (curves[:, 0, 0] == 1.0).view(-1, 1).expand(-1, steps)
 
-        # Create x-axis (revealed fraction)
         x = torch.where(
-            cond,  # Ahora tiene tamaño (batch_size, steps)
-            1 - curves[:, :, 0],  # Revealed = removed fraction
-            curves[:, :, 0],  # MIF: revealed = preserved fraction
+            cond,
+            1 - curves[:, :, 0],  # LIF: revealed = removed fraction
+            0 - curves[:, :, 0],  # MIF: revealed = preserved fraction
         )
+        y = curves[:, :, 1]
 
-        # Compute AUC using trapezoidal integration
-        auc = torch.trapz(y_norm, x, dim=1)
+        auc = torch.trapz(y, x, dim=1)
         return auc
 
     def reset(self):

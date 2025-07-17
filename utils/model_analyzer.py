@@ -74,32 +74,6 @@ class ModelAnalyzer:
 
         return heatmap
 
-    def get_activations(
-        self,
-        layer: nn.Module,
-        pool: bool = False,
-    ) -> torch.Tensor:
-        hook = self._ActivationHook()
-        hook.register(layer)
-        _ = self.model(self.inputs)
-        hook.remove()
-        return hook.activations.mean(1, keepdim=True) if pool else hook.activations
-
-    class _ActivationHook:
-        def __init__(self):
-            self.activations = None
-            self.hook_handle = None
-
-        def __call__(self, module, input, output):
-            self.activations = output
-
-        def register(self, layer):
-            self.hook_handle = layer.register_forward_hook(self)
-
-        def remove(self):
-            if self.hook_handle:
-                self.hook_handle.remove()
-
     @staticmethod
     def find_layers_by_type(model: nn.Module, layer_type: type) -> List[nn.Module]:
         return [

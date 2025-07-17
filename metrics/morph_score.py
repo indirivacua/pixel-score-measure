@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from typing import List, Callable
 from typing import Optional
 from .metrics import Metric
-import matplotlib.pyplot as plt
+from torchvision.transforms import GaussianBlur
 
 
 class MorphScore(Metric):
@@ -47,16 +47,14 @@ class MorphScore(Metric):
         return int(2 * torch.ceil(torch.tensor(3 * sigma)).item() + 1)
 
     def _precompute_blurred_inputs(self):
-        from torchvision.transforms import GaussianBlur
-
         kernel_size = self._calculate_kernel_size(self.blur_sigma)
         blurrer = GaussianBlur(kernel_size=kernel_size, sigma=self.blur_sigma)
         self.blurred_inputs = blurrer(self.inputs).to(self.inputs.device)
 
     @staticmethod
-    def _morphology(input: torch.Tensor, mode: str) -> torch.Tensor:
+    def _batch_morphology_step(input: torch.Tensor, mode: str) -> torch.Tensor:
         kernel = torch.ones((1, 1, 3, 3), device=input.device, dtype=input.dtype)
-        input_4d = input.unsqueeze(0).unsqueeze(0)
+        input_4d = input.unsqueeze(1)  # (B, 1, H, W)
         conv = F.conv2d(input_4d, kernel, padding="same")
 
         match mode:
@@ -67,7 +65,7 @@ class MorphScore(Metric):
             case _:
                 raise ValueError(f"Invalid morphology mode: {mode}")
 
-        return mask.to(input.dtype).squeeze()
+        return mask.to(input.dtype).squeeze(1)  # (B, H, W)
 
     def _batch_morphology(
         self,
@@ -77,57 +75,70 @@ class MorphScore(Metric):
         n_steps: int,
         callbacks: List[Callable],
     ) -> torch.Tensor:
-        masks = (self.heatmaps.squeeze(1) > threshold).float()
-        batch_size = masks.size(0)
-        result = torch.zeros(batch_size, n_steps, 2, device=masks.device)
+        masks = (self.heatmaps > threshold).float()
+        batch_size, H, W = masks.shape
+        device = masks.device
 
-        for b in range(batch_size):
-            current_mask = masks[b].float()
-            history = []
+        curves = torch.zeros((batch_size, n_steps, 2), device=device)
 
-            for it in range(n_steps):
-                pixel_frac = current_mask.mean()
-                if self._stop_condition(mode, pixel_frac, target_fraction):
-                    break
+        if not hasattr(self, 'scores') or self.scores is None:
+            with torch.no_grad():
+                original_outputs = self.model(self.inputs)
+            self.scores = original_outputs[torch.arange(batch_size), self.targets]
 
-                current_mask = self._morphology(current_mask, mode)
-                score = self._compute_score(b, current_mask)
-                history.append((pixel_frac.item(), score))
+        active = torch.ones(batch_size, dtype=torch.bool, device=device)
+        current_masks = masks.clone()
+        last_active_step = torch.zeros(batch_size, dtype=torch.long, device=device) - 1
 
+        for step in range(n_steps):
+            pixel_fracs = current_masks.mean(dim=(1, 2))  # (B,)
+
+            if self.blur_sigma is not None:
+                masked_inputs = (
+                    current_masks.unsqueeze(1) * self.inputs
+                    + (1 - current_masks.unsqueeze(1)) * self.blurred_inputs
+                )
+            else:
+                masked_inputs = current_masks.unsqueeze(1) * self.inputs
+
+            with torch.no_grad():
+                outputs = self.model(masked_inputs)
+            scores = outputs[torch.arange(batch_size), self.targets]  # (B,)
+
+            curves[:, step, 0] = pixel_fracs
+            curves[:, step, 1] = scores
+
+            last_active_step[active] = step
+
+            if callbacks:
                 for callback in callbacks:
-                    callback(current_mask)
+                    callback(current_masks)
 
-            # Pad and store results
-            padded_history = self._pad_history(history, n_steps, b)
-            result[b] = torch.tensor(padded_history, device=masks.device)
+            if mode == "erode":
+                still_active = pixel_fracs > target_fraction
+            elif mode == "dilate":
+                still_active = pixel_fracs < target_fraction
 
-        return result
+            active = active & still_active
 
-    def _pad_history(
-        self, history: List[tuple], max_length: int, batch_idx: int
-    ) -> List[tuple]:
-        padding = [(1.0, self.scores[batch_idx].item())] * (max_length - len(history))
-        return sorted(history + padding, key=lambda x: x[0])
+            if not active.any():
+                # if step < n_steps - 1:
+                #     curves[:, step + 1 :, 0] = pixel_fracs.unsqueeze(1)
+                #     curves[:, step + 1 :, 1] = scores.unsqueeze(1)
+                break
 
-    def _compute_score(self, batch_idx: int, mask: torch.Tensor) -> float:
-        input_4d = self.inputs[batch_idx].unsqueeze(0)
-        if self.blur_sigma is not None:
-            blurred_input = self.blurred_inputs[batch_idx].unsqueeze(0)
-            input_masked = mask * input_4d + (1 - mask) * blurred_input
-        else:
-            input_masked = mask * input_4d
-        with torch.no_grad():
-            output = self.model(input_masked)
-        return output[0, self.targets[batch_idx]].item()
+            if active.any():
+                active_masks = current_masks[active]
+                morphed_masks = self._batch_morphology_step(active_masks, mode)
+                current_masks[active] = morphed_masks
 
-    def _stop_condition(self, mode: str, current: float, target: float) -> bool:
-        match mode:
-            case "erode":
-                return current <= target
-            case "dilate":
-                return current >= target
-            case _:
-                raise ValueError("Invalid morphology operation")
+        for i in range(batch_size):
+            start_fill = last_active_step[i] + 1
+            if start_fill < n_steps:
+                curves[i, start_fill:, 0] = 1.0
+                curves[i, start_fill:, 1] = self.scores[i]
+
+        return curves
 
     def update(
         self,
@@ -145,33 +156,20 @@ class MorphScore(Metric):
         if self.output_curves is None:
             raise RuntimeError("Must run update() before computing AUC.")
 
-        # Obtener y ordenar resultados
+        sorted_indices = torch.argsort(self.output_curves[:, :, 0], dim=1)
+
         x = torch.gather(
             self.output_curves[:, :, 0],
             1,
-            torch.argsort(self.output_curves[:, :, 0], dim=1),
+            sorted_indices,
         )
         y = torch.gather(
             self.output_curves[:, :, 1],
             1,
-            torch.argsort(self.output_curves[:, :, 0], dim=1),
+            sorted_indices,
         )
 
-        # Normalización vectorizada
-        y_min = y.min(dim=1, keepdim=True)[0] * 0
-        y_max = y.max(dim=1, keepdim=True)[0] * 0 + 1
-        y_range = y_max - y_min + 1e-8  # Evitar división por cero
-        y_norm = (y - y_min) / y_range
-
-        # Detectar casos constantes (ajustar tol según necesidad)
-        constant_mask = y_range.squeeze() < 1e-4  # Máscara 1D
-
-        # Cálculo de AUC vectorizado
-        auc = torch.trapz(y_norm, x, dim=1)
-
-        # Manejo de casos constantes usando el último valor normalizado
-        auc[constant_mask] = y_norm[constant_mask, -1]
-
+        auc = torch.trapz(y, x, dim=1)
         return auc
 
     def reset(self):
