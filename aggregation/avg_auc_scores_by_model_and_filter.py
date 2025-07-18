@@ -6,13 +6,13 @@ import csv
 
 # Directorio base que contiene las carpetas de cada modelo
 BASE_DIR = (
-    "/mnt/sda2/datasets/ostanchi/journal_outputs_2025-05-07"  # ajústalo a tu ruta
+    "/mnt/sda2/datasets/ostanchi/cacic_outputs_2025-07-16"  # ajústalo a tu ruta
 )
 
 # Métodos que aparecen en los archivos
-METHODS = ["CB-RISE (7x7)", "Occlusion", "Grad-CAM"]
+METHODS = ["Activations", "EnhancedLayerGradCam", "Occlusion", "RISE", "CentralAttribution", "NormalAttribution", "OnePixelAttribution", "UniformAttribution"]
 # Filtros que tienes
-FILTERS = ["erosion", "dilation"]
+FILTERS = ["MorphScore", "ImportanceScore"]
 
 # Lista donde iremos acumulando filas para el CSV resultado
 rows = []
@@ -24,7 +24,7 @@ for model_name in sorted(os.listdir(BASE_DIR)):
 
     for filt in FILTERS:
         # Patrón para localizar todos los archivos de este filtro en todos los batches
-        pattern = os.path.join(model_dir, "batch_*", f"auc_scores_avg_{filt}_64.txt")
+        pattern = os.path.join(model_dir, "batch_*", f"attributions_scores_{filt}_64.txt")
         files = glob.glob(pattern)
         if not files:
             continue
@@ -105,16 +105,18 @@ for ax, filter_type in zip(axes, filters):
             width=bar_width,
             label=method,
         )
-    ax.set_title(f"{filter_type.capitalize()}")
+    ax.set_title(f"{filter_type}")#.capitalize()}")
     ax.set_xticks([x + bar_width for x in x_positions])
-    ax.set_xticklabels(
-        [m for m in models], rotation=45, ha="center"
-    )  # m.replace('_', ' ').title()
-    ax.set_xlabel("Model")
+    # ax.set_xticklabels(
+    #     [m for m in models], rotation=45, ha="center"
+    # )  # m.replace('_', ' ').title()
+    # ax.set_xlabel("Model")
+    ax.set_xticklabels([])
     ax.grid(axis="y", linestyle="--", linewidth=0.5)
 
 axes[0].set_ylabel("Average AUC Score")
-fig.suptitle("Average Erosion and Dilation AUC Scores by Model and Method")
+# fig.suptitle("Average Erosion and Dilation AUC Scores by Model and Method")
+fig.suptitle("Average AUC Scores")
 fig.legend(methods, loc="upper center", ncol=len(methods), bbox_to_anchor=(0.5, 0.05))
 fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 

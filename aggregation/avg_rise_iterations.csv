@@ -1,7 +1,3 @@
 model,filter,avg_rise_iterations,num_batches
-convnext_base,dilation,3200.00,18
-convnext_base,erosion,3200.00,18
-resnet101,dilation,3185.78,18
-resnet101,erosion,3185.78,18
-vit_l_32,dilation,3072.00,18
-vit_l_32,erosion,3072.00,18
+resnet101,importance,0.00,18
+resnet101,morph,3178.67,18

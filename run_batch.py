@@ -10,27 +10,27 @@ now = datetime.now()
 date_string = now.strftime("%Y-%m-%d")
 
 # Configuración
-model_names = ["resnet101", "convnext_base", "vit_l_32"]
-filter_options = ["erosion"]
-combinations = list(itertools.product(model_names, filter_options))
+model_names = ["resnet101"]
+metric_names = ["morph", "importance"]
+combinations = list(itertools.product(model_names, metric_names))
 
 script_path = "ablation.py"
 base_input = "img/imagenet_filtered"
-base_output = f"/mnt/sda2/datasets/ostanchi/journal_outputs_{date_string}"
+base_output = f"/mnt/sda2/datasets/ostanchi/cacic_outputs_{date_string}"
 
 # Calculamos cuántos lotes hacen falta
 all_batches = sorted(glob.glob(os.path.join(base_input, "*")))
 
 start_time = perf_counter()
 
-for model_name, filter_option in tqdm(combinations, desc="Combinations"):
+for model_name, metric_name in tqdm(combinations, desc="Combinations"):
     for input_path in all_batches:
         batch_index = input_path[-3:]
         output_path = os.path.join(base_output, model_name, f"batch_{batch_index}")
 
         os.makedirs(output_path, exist_ok=True)
 
-        header = f" Model={model_name} | Filter={filter_option} | Batch={batch_index} "
+        header = f" Model={model_name} | Filter={metric_name} | Batch={batch_index} "
         print(f"\n{header:_^80}\n", flush=True)
 
         cmd = [
@@ -38,8 +38,8 @@ for model_name, filter_option in tqdm(combinations, desc="Combinations"):
             script_path,
             "--model_name",
             model_name,
-            "--filter_option",
-            filter_option,
+            "--metric_name",
+            metric_name,
             "--input_path",
             input_path,
             "--output_path",

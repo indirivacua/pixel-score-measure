@@ -5,7 +5,7 @@ parser = argparse.ArgumentParser(description="Configuration")
 parser.add_argument(
     "--input_path",
     type=str,
-    default="img/imagenet_filtered/batch_000",
+    default="img/imagenet_filtered/batch_016",
     help="Input image path",
 )
 parser.add_argument(
@@ -25,12 +25,6 @@ parser.add_argument(
     type=str,
     default="morph",
     help="Metric name",
-)
-parser.add_argument(
-    "--filter_option",
-    type=str,
-    default="erosion",
-    help="Filter option (erosion or dilation)",
 )
 args = parser.parse_args()
 
@@ -222,7 +216,6 @@ from metrics.importance_score import ImportanceScore
 
 SCORE_KWARGS = {"scores": analyzer.scores, "blur_sigma": 50.0}
 
-args.metric_name = "importance"
 match args.metric_name:
     case "morph":
         SCORE_CLASS = MorphScore

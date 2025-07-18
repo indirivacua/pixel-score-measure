@@ -5,7 +5,7 @@ import csv
 from collections import defaultdict
 
 # Ruta a tu archivo nohup
-LOG_PATH = "nohup_2025-05-07.out"
+LOG_PATH = "nohup_2025-07-16.out"
 # Ruta de salida
 OUTPUT_CSV = "avg_rise_iterations.csv"
 
