@@ -181,10 +181,10 @@ baselines_configs = [
 ]
 
 configs = [
-    # activations_config,
-    # gradcam_config,
-    # occlusion_config,
-    # rise_config,
+    activations_config,
+    gradcam_config,
+    occlusion_config,
+    rise_config,
     *baselines_configs,
 ]
 
@@ -201,13 +201,13 @@ except:
     heatmaps = {str(config): analyzer.analyze(config) for config in configs}
     [torch.save(v, f"{OUTPUT_PATH}/{str(k)}.pt") for k, v in heatmaps.items()]
 
-# heatmaps['Activations'] *= -1 #fix
-# heatmaps = {
-#     str(k): HeatmapUtils.normalize(
-#         HeatmapUtils.upsample(v, inputs.shape[-2:], "bicubic"), use_min=True
-#     )
-#     for k, v in heatmaps.items()
-# }
+heatmaps["Activations"] *= -1  # fix
+heatmaps = {
+    str(k): HeatmapUtils.normalize(
+        HeatmapUtils.upsample(v, inputs.shape[-2:], "bicubic"), use_min=True
+    )
+    for k, v in heatmaps.items()
+}
 
 # %%
 ########################################

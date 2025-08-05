@@ -46,9 +46,6 @@ class OnePixelAttribution(Attribution):
 
         return heatmaps
 
-    def __str__(self):
-        return r"$\mathbf{1}$-pixel"
-
 
 class UniformAttribution(Attribution):
     def __init__(self, forward_func: Callable):
@@ -98,9 +95,6 @@ class UniformAttribution(Attribution):
 
         return heatmaps
 
-    def __str__(self):
-        return r"$\mathcal{U}$-pixel"
-
 
 class NormalAttribution(Attribution):
     def __init__(self, forward_func: Callable):
@@ -147,9 +141,6 @@ class NormalAttribution(Attribution):
         heatmaps = heatmaps / heatmaps.sum(dim=(2, 3), keepdim=True)
 
         return heatmaps
-
-    def __str__(self):
-        return r"$\mathcal{N}$-pixel"
 
 
 class CentralAttribution(Attribution):
@@ -210,6 +201,3 @@ class CentralAttribution(Attribution):
         heatmap = heatmap / (s * s)
 
         return heatmap
-
-    def __str__(self):
-        return r"$\mathbf{\%}$-pixel"

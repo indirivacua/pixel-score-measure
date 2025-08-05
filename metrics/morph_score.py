@@ -174,6 +174,3 @@ class MorphScore(Metric):
 
     def reset(self):
         self.output_curves = None
-
-    def __str__(self):
-        return "MES"
