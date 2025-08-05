@@ -5,7 +5,9 @@ import glob
 import csv
 
 # Directorio base que contiene las carpetas de cada modelo
-BASE_DIR = "/mnt/sda2/datasets/ostanchi/cacic_outputs_2025-07-16"  # ajústalo a tu ruta
+BASE_DIR = (
+    "/mnt/sda2/datasets/ostanchi/journal_outputs_2025-07-16"  # ajústalo a tu ruta
+)
 
 # Métodos que aparecen en los archivos
 METHODS = [
@@ -114,18 +116,16 @@ for ax, filter_type in zip(axes, filters):
             width=bar_width,
             label=method,
         )
-    ax.set_title(f"{filter_type}")  # .capitalize()}")
+    ax.set_title(f"{filter_type}")
     ax.set_xticks([x + bar_width for x in x_positions])
-    # ax.set_xticklabels(
-    #     [m for m in models], rotation=45, ha="center"
-    # )  # m.replace('_', ' ').title()
-    # ax.set_xlabel("Model")
-    ax.set_xticklabels([])
+    ax.set_xticklabels(
+        [m for m in models], rotation=45, ha="center"
+    )
+    ax.set_xlabel("Model")
     ax.grid(axis="y", linestyle="--", linewidth=0.5)
 
 axes[0].set_ylabel("Average AUC Score")
-# fig.suptitle("Average Erosion and Dilation AUC Scores by Model and Method")
-fig.suptitle("Average AUC Scores")
+fig.suptitle("Average AUC Scores by Model and Method")
 fig.legend(methods, loc="upper center", ncol=len(methods), bbox_to_anchor=(0.5, 0.05))
 fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 

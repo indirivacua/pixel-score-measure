@@ -56,6 +56,7 @@ class ImportanceScore(Metric):
         mode: str = "lif",
         n_steps: int = 100,
         callbacks: Optional[List[Callable]] = None,
+        **kwargs,
     ):
         batch_size, H, W = self.heatmaps.shape
         total_pixels = H * W
@@ -77,9 +78,7 @@ class ImportanceScore(Metric):
 
         # Sort by importance values
         if mode == "lif":
-            sorted_vals, sorted_indices = torch.sort(
-                heatmaps_flat, dim=1
-            )  # Ascending
+            sorted_vals, sorted_indices = torch.sort(heatmaps_flat, dim=1)  # Ascending
         elif mode == "mif":
             sorted_vals, sorted_indices = torch.sort(
                 heatmaps_flat, dim=1, descending=True
@@ -100,7 +99,11 @@ class ImportanceScore(Metric):
             # Find boundaries of equal-value blocks
             diff = vals[1:] != vals[:-1]
             change_pts = torch.nonzero(diff, as_tuple=False).squeeze() + 1
-            cp_list = change_pts.tolist() if isinstance(change_pts.tolist(), list) else [int(change_pts)]
+            cp_list = (
+                change_pts.tolist()
+                if isinstance(change_pts.tolist(), list)
+                else [int(change_pts)]
+            )
             boundaries = [0] + cp_list + [total_pixels]
 
             reordered = []
@@ -108,7 +111,10 @@ class ImportanceScore(Metric):
             for start, end in zip(boundaries[:-1], boundaries[1:]):
                 block = idxs[start:end]
                 # Split block into subchunks of size chunk_size
-                subblocks = [block[i : i + chunk_size] for i in range(0, block.numel(), chunk_size)]
+                subblocks = [
+                    block[i : i + chunk_size]
+                    for i in range(0, block.numel(), chunk_size)
+                ]
                 # If multiple subblocks (i.e., block is larger than chunk_size), shuffle their order
                 if len(subblocks) > 1:
                     perm = torch.randperm(len(subblocks), device=device)
@@ -122,13 +128,9 @@ class ImportanceScore(Metric):
 
         # Prepare fractions progression
         if mode == "lif":
-            fractions = torch.linspace(
-                1.0, 0.0, steps, device=device
-            )
+            fractions = torch.linspace(1.0, 0.0, steps, device=device)
         else:
-            fractions = torch.linspace(
-                0.0, 1.0, steps, device=device
-            )
+            fractions = torch.linspace(0.0, 1.0, steps, device=device)
 
         curves = torch.zeros((batch_size, steps, 2), device=device)
 
@@ -151,7 +153,10 @@ class ImportanceScore(Metric):
 
             # Apply mask to inputs
             if self.blur_sigma is not None:
-                masked_inputs = mask.unsqueeze(1) * self.inputs + (1 - mask.unsqueeze(1)) * self.blurred_inputs
+                masked_inputs = (
+                    mask.unsqueeze(1) * self.inputs
+                    + (1 - mask.unsqueeze(1)) * self.blurred_inputs
+                )
             else:
                 masked_inputs = mask.unsqueeze(1) * self.inputs
 

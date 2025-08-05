@@ -147,6 +147,7 @@ class MorphScore(Metric):
         target_fraction: float = 0.01,
         n_steps: int = 100,
         callbacks: Optional[List[Callable]] = None,
+        **kwargs,
     ):
         self.output_curves = self._batch_morphology(
             mode, threshold, target_fraction, n_steps, callbacks

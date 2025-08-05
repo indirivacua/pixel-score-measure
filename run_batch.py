@@ -10,13 +10,13 @@ now = datetime.now()
 date_string = now.strftime("%Y-%m-%d")
 
 # Configuración
-model_names = ["resnet101"]
+model_names = ["resnet101", "convnext_base", "vit_l_32"]
 metric_names = ["morph", "importance"]
 combinations = list(itertools.product(model_names, metric_names))
 
 script_path = "ablation.py"
 base_input = "img/imagenet_filtered"
-base_output = f"/mnt/sda2/datasets/ostanchi/cacic_outputs_{date_string}"
+base_output = f"/mnt/sda2/datasets/ostanchi/journal_outputs_{date_string}"
 
 # Calculamos cuántos lotes hacen falta
 all_batches = sorted(glob.glob(os.path.join(base_input, "*")))

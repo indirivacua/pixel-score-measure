@@ -5,13 +5,13 @@ parser = argparse.ArgumentParser(description="Configuration")
 parser.add_argument(
     "--input_path",
     type=str,
-    default="img/imagenet_filtered/batch_016",
+    default="img/imagenet_filtered/batch_000",
     help="Input image path",
 )
 parser.add_argument(
     "--output_path",
     type=str,
-    default="outputs_cacic",
+    default="outputs",
     help="Output path",
 )
 parser.add_argument(
@@ -23,7 +23,7 @@ parser.add_argument(
 parser.add_argument(
     "--metric_name",
     type=str,
-    default="importance",
+    default="morph",
     help="Metric name",
 )
 args = parser.parse_args()
@@ -60,8 +60,7 @@ DEVICE, DTYPE = (
 )
 MODEL_NAME = args.model_name
 INPUT_PATH = args.input_path
-OUTPUT_ROOT = args.output_path
-OUTPUT_PATH = f"{OUTPUT_ROOT}/{MODEL_NAME}"
+OUTPUT_PATH = args.output_path
 OUTPUT_PATH_DEBUG = f"{OUTPUT_PATH}/debug"
 
 labels_path = "models/imagenet_class_index.json"
@@ -201,13 +200,19 @@ except:
     heatmaps = {str(config): analyzer.analyze(config) for config in configs}
     [torch.save(v, f"{OUTPUT_PATH}/{str(k)}.pt") for k, v in heatmaps.items()]
 
-heatmaps["Activations"] *= -1  # fix
 heatmaps = {
     str(k): HeatmapUtils.normalize(
         HeatmapUtils.upsample(v, inputs.shape[-2:], "bicubic"), use_min=True
     )
     for k, v in heatmaps.items()
 }
+
+# Fixes
+heatmaps["Activations"] = 1 - heatmaps["Activations"]
+heatmaps["UniformAttribution"] = torch.full(
+    inputs[:, :1].shape, 0.5, device=inputs.device, dtype=inputs.dtype
+)
+
 
 # %%
 ########################################
@@ -222,13 +227,10 @@ from metrics.importance_score import ImportanceScore
 
 SCORE_KWARGS = {"scores": analyzer.scores, "blur_sigma": 50.0}
 
-match args.metric_name:
-    case "morph":
-        SCORE_CLASS = MorphScore
-    case "importance":
-        SCORE_CLASS = ImportanceScore
-    case _:
-        raise ValueError(f"Unsupported metric name: {args.metric_name}")
+SCORE_CLASS = {
+    "morph": MorphScore,
+    "importance": ImportanceScore,
+}.get(args.metric_name, ValueError(f"Unsupported metric name: {args.metric_name}"))
 
 vc = VideoCallback(cmap="gray")
 
