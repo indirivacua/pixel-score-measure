@@ -11,7 +11,7 @@ parser.add_argument(
 parser.add_argument(
     "--output_path",
     type=str,
-    default="outputs",
+    default="outputs_cacic",
     help="Output path",
 )
 parser.add_argument(
@@ -23,7 +23,7 @@ parser.add_argument(
 parser.add_argument(
     "--metric_name",
     type=str,
-    default="morph",
+    default="importance",
     help="Metric name",
 )
 args = parser.parse_args()
@@ -180,7 +180,13 @@ baselines_configs = [
     if cls.__module__ == "modules.baselines"
 ]
 
-configs = [activations_config, gradcam_config, occlusion_config, rise_config, *baselines_configs]
+configs = [
+    activations_config,
+    gradcam_config,
+    occlusion_config,
+    rise_config,
+    *baselines_configs,
+]
 
 try:
     if force_computation:
@@ -195,7 +201,7 @@ except:
     heatmaps = {str(config): analyzer.analyze(config) for config in configs}
     [torch.save(v, f"{OUTPUT_PATH}/{str(k)}.pt") for k, v in heatmaps.items()]
 
-heatmaps['Activations'] *= -1 #fix
+# heatmaps['Activations'] *= -1 #fix
 heatmaps = {
     str(k): HeatmapUtils.normalize(
         HeatmapUtils.upsample(v, inputs.shape[-2:], "bicubic"), use_min=True
@@ -309,7 +315,17 @@ except:
     ]
 
 overlay_image = True
-cols = list(heatmaps.keys())
+cols = [
+    "Activations",
+    "GradCAM",
+    "Occlusion",
+    "CB-RISE",
+    r"$\mathbf{\%}$-pixel",
+    r"$\mathcal{N}$-pixel",
+    r"$\mathbf{1}$-pixel",
+    r"$\mathcal{U}$-pixel",
+]
+    #list(heatmaps.keys())
 
 sub_batch_size = 16
 n_images = inputs.shape[0]

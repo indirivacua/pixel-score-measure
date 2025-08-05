@@ -3,14 +3,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torchvision.io import write_video
+from matplotlib.colors import Normalize
 from typing import List, Dict, Optional
 
 class VideoCallback:
     """Callback para generar videos de heatmaps por elemento de batch"""
     
-    def __init__(self, cmap: str = "gray", fps: int = 60):
+    def __init__(self, cmap: str = "gray", fps: int = 60, vmin: float = 0.0, vmax: float = 1.0):
         self.cmap = cmap
         self.fps = fps
+        self.vmin = vmin
+        self.vmax = vmax
+        self.norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
         self.videos: Dict[int, List[torch.Tensor]] = {}
         self.batch_size: Optional[int] = None
     
@@ -25,9 +29,9 @@ class VideoCallback:
         
         for i in range(self.batch_size):
             hm = heatmap_batch[i]
-            hm_normalized = (hm - hm.min()) / (hm.max() - hm.min() + 1e-8)
+            hm_normalized = self.norm(hm.numpy())
             
-            rgb = (plt.get_cmap(self.cmap)(hm_normalized.numpy())[..., :3] * 255)
+            rgb = (plt.get_cmap(self.cmap)(hm_normalized)[..., :3] * 255)
             rgb_uint8 = rgb.astype(np.uint8)
             
             self.videos[i].append(torch.from_numpy(rgb_uint8))

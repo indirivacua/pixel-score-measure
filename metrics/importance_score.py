@@ -63,7 +63,7 @@ class ImportanceScore(Metric):
 
         heatmaps_flat = self.heatmaps.view(batch_size, -1)  # (B, H*W)
 
-        random_values = torch.rand(heatmaps_flat.shape, device=device)
+        random_values = 0#torch.rand(heatmaps_flat.shape, device=device)
         tie_breaker = 1e-6 * random_values
         heatmaps_with_tie_break = heatmaps_flat + tie_breaker
 
@@ -87,15 +87,14 @@ class ImportanceScore(Metric):
 
         for step in range(steps):
             f = fractions[step].item()
-            idx = max(0, min(total_pixels - 1, int((1 - f) * total_pixels)))
-            thresholds = sorted_heatmaps[:, idx]  # (B,)
 
-            # Create mask: (B, H, W)
-            mask = self.heatmaps >= thresholds.view(
-                -1, 1, 1
-            )  # Broadcast to spatial dims
+            if step == 0:
+                mask = torch.ones((batch_size, H, W), device=device)
+            else:
+                idx = max(0, min(total_pixels - 1, int((1 - f) * total_pixels)))
+                thresholds = sorted_heatmaps[:, idx]  # (B,)
+                mask = (self.heatmaps >= thresholds.view(-1, 1, 1)).float()
 
-            mask = mask.float()
             if self.blur_sigma is not None:
                 masked_inputs = (
                     mask.unsqueeze(1) * self.inputs
@@ -138,3 +137,6 @@ class ImportanceScore(Metric):
 
     def reset(self):
         self.output_curves = None
+
+    def __str__(self):
+        return "LIF"
