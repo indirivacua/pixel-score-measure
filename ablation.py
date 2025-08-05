@@ -181,10 +181,10 @@ baselines_configs = [
 ]
 
 configs = [
-    activations_config,
-    gradcam_config,
-    occlusion_config,
-    rise_config,
+    # activations_config,
+    # gradcam_config,
+    # occlusion_config,
+    # rise_config,
     *baselines_configs,
 ]
 
@@ -202,12 +202,12 @@ except:
     [torch.save(v, f"{OUTPUT_PATH}/{str(k)}.pt") for k, v in heatmaps.items()]
 
 # heatmaps['Activations'] *= -1 #fix
-heatmaps = {
-    str(k): HeatmapUtils.normalize(
-        HeatmapUtils.upsample(v, inputs.shape[-2:], "bicubic"), use_min=True
-    )
-    for k, v in heatmaps.items()
-}
+# heatmaps = {
+#     str(k): HeatmapUtils.normalize(
+#         HeatmapUtils.upsample(v, inputs.shape[-2:], "bicubic"), use_min=True
+#     )
+#     for k, v in heatmaps.items()
+# }
 
 # %%
 ########################################
@@ -236,7 +236,7 @@ scores = {k: {} for k, v in heatmaps.items()}
 for k, v in heatmaps.items():
     metric = SCORE_CLASS(model, inputs, v, analyzer.targets, **SCORE_KWARGS)
     metric.update(callbacks=[vc])
-    scores[k] = { "curve": metric.output_curves, "auc": metric.compute() }
+    scores[k] = {"curve": metric.output_curves, "auc": metric.compute()}
     vc.save_videos(f"{OUTPUT_PATH_DEBUG}/{str(metric)}", prefix=k)
     vc.reset()
     metric.reset()
@@ -315,17 +315,7 @@ except:
     ]
 
 overlay_image = True
-cols = [
-    "Activations",
-    "GradCAM",
-    "Occlusion",
-    "CB-RISE",
-    r"$\mathbf{\%}$-pixel",
-    r"$\mathcal{N}$-pixel",
-    r"$\mathbf{1}$-pixel",
-    r"$\mathcal{U}$-pixel",
-]
-    #list(heatmaps.keys())
+cols = list(heatmaps.keys())
 
 sub_batch_size = 16
 n_images = inputs.shape[0]
@@ -369,6 +359,8 @@ for batch_start in range(0, n_images, sub_batch_size):
             im = axes[row_idx, col_idx].imshow(
                 attr_chunk[row_idx][0].detach().cpu().numpy(),
                 cmap="jet",
+                vmin=0.0,
+                vmax=1.0,
                 alpha=0.5 if overlay_image else 1,
             )
             axes[row_idx, col_idx].set_xticks([])

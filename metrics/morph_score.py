@@ -81,7 +81,7 @@ class MorphScore(Metric):
 
         curves = torch.zeros((batch_size, n_steps, 2), device=device)
 
-        if not hasattr(self, 'scores') or self.scores is None:
+        if not hasattr(self, "scores") or self.scores is None:
             with torch.no_grad():
                 original_outputs = self.model(self.inputs)
             self.scores = original_outputs[torch.arange(batch_size), self.targets]

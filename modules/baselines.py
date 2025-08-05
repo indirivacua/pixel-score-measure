@@ -46,9 +46,12 @@ class OnePixelAttribution(Attribution):
 
         return heatmaps
 
+    def __str__(self):
+        return r"$\mathbf{1}$-pixel"
+
 
 class UniformAttribution(Attribution):
-    def __init__(self, forward_func: Callable, k: Optional[float] = None):
+    def __init__(self, forward_func: Callable):
         """
         Atribución uniforme en todos los píxeles (entropía máxima).
 
@@ -58,11 +61,11 @@ class UniformAttribution(Attribution):
                                  Si es None, se usa un valor aleatorio por heatmap.
         """
         super().__init__(forward_func)
-        self.k = k
 
     def attribute(
         self,
         inputs: Tensor,
+        k: Optional[float] = None,
         baselines: Optional[Tensor] = None,
         target: Optional[int] = None,
         additional_forward_args: Any = None,
@@ -80,10 +83,10 @@ class UniformAttribution(Attribution):
         """
         B, C, H, W = inputs.shape
 
-        if self.k is not None:
+        if k is not None:
             # Usar valor constante k para todos los píxeles
             heatmaps = torch.full(
-                (B, 1, H, W), self.k, device=inputs.device, dtype=inputs.dtype
+                (B, 1, H, W), k, device=inputs.device, dtype=inputs.dtype
             )
         else:
             # Generar un valor aleatorio diferente para cada elemento del batch
@@ -91,13 +94,16 @@ class UniformAttribution(Attribution):
             heatmaps = k_values.expand(B, 1, H, W)
 
         # Normalizar a distribución de probabilidad
-        heatmaps = heatmaps / heatmaps.sum(dim=(2, 3), keepdim=True)
+        # heatmaps = heatmaps / heatmaps.sum(dim=(2, 3), keepdim=True)
 
         return heatmaps
 
+    def __str__(self):
+        return r"$\mathcal{U}$-pixel"
+
 
 class NormalAttribution(Attribution):
-    def __init__(self, forward_func: Callable, mean: float = 0.0, std: float = 1.0):
+    def __init__(self, forward_func: Callable):
         """
         Atribución con distribución normal (entropía intermedia).
 
@@ -107,12 +113,12 @@ class NormalAttribution(Attribution):
             std (float): Desviación estándar de la distribución normal
         """
         super().__init__(forward_func)
-        self.mean = mean
-        self.std = std
 
     def attribute(
         self,
         inputs: Tensor,
+        mean: float = 0.0,
+        std: float = 1.0,
         baselines: Optional[Tensor] = None,
         target: Optional[int] = None,
         additional_forward_args: Any = None,
@@ -132,7 +138,7 @@ class NormalAttribution(Attribution):
 
         # Generar valores aleatorios con distribución normal
         heatmaps = torch.randn(B, 1, H, W, device=inputs.device, dtype=inputs.dtype)
-        heatmaps = heatmaps * self.std + self.mean
+        heatmaps = heatmaps * std + mean
 
         # Convertir a valores no negativos (absolutos)
         heatmaps = torch.abs(heatmaps)
@@ -142,9 +148,12 @@ class NormalAttribution(Attribution):
 
         return heatmaps
 
+    def __str__(self):
+        return r"$\mathcal{N}$-pixel"
+
 
 class CentralAttribution(Attribution):
-    def __init__(self, forward_func: Callable, percentage: float = 0.1):
+    def __init__(self, forward_func: Callable):
         """
         Atribución que activa un cuadrado central de píxeles, cubriendo un porcentaje dado del total.
 
@@ -153,11 +162,11 @@ class CentralAttribution(Attribution):
             percentage (float): Fracción de píxeles totales que debe cubrir el cuadrado central (entre 0 y 1)
         """
         super().__init__(forward_func)
-        self.percentage = percentage
 
     def attribute(
         self,
         inputs: Tensor,
+        percentage: float = 0.1,
         baselines: Optional[Tensor] = None,
         target: Optional[int] = None,
         additional_forward_args: Any = None,
@@ -178,12 +187,12 @@ class CentralAttribution(Attribution):
         dtype = inputs.dtype
 
         # Manejar caso de porcentaje cero
-        if self.percentage <= 0:
+        if percentage <= 0:
             return torch.zeros(B, 1, H, W, device=device, dtype=dtype)
 
         # Calcular número total de píxeles y tamaño del cuadrado central
         total_pixels = H * W
-        k = self.percentage * total_pixels
+        k = percentage * total_pixels
 
         # Calcular lado del cuadrado (redondeado al entero más cercano)
         s = round(math.sqrt(k))
@@ -201,3 +210,6 @@ class CentralAttribution(Attribution):
         heatmap = heatmap / (s * s)
 
         return heatmap
+
+    def __str__(self):
+        return r"$\mathbf{\%}$-pixel"

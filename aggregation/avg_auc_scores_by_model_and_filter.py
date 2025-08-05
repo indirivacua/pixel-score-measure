@@ -5,12 +5,19 @@ import glob
 import csv
 
 # Directorio base que contiene las carpetas de cada modelo
-BASE_DIR = (
-    "/mnt/sda2/datasets/ostanchi/cacic_outputs_2025-07-16"  # ajústalo a tu ruta
-)
+BASE_DIR = "/mnt/sda2/datasets/ostanchi/cacic_outputs_2025-07-16"  # ajústalo a tu ruta
 
 # Métodos que aparecen en los archivos
-METHODS = ["Activations", "EnhancedLayerGradCam", "Occlusion", "RISE", "CentralAttribution", "NormalAttribution", "OnePixelAttribution", "UniformAttribution"]
+METHODS = [
+    "Activations",
+    "EnhancedLayerGradCam",
+    "Occlusion",
+    "RISE",
+    "CentralAttribution",
+    "NormalAttribution",
+    "OnePixelAttribution",
+    "UniformAttribution",
+]
 # Filtros que tienes
 FILTERS = ["MorphScore", "ImportanceScore"]
 
@@ -24,7 +31,9 @@ for model_name in sorted(os.listdir(BASE_DIR)):
 
     for filt in FILTERS:
         # Patrón para localizar todos los archivos de este filtro en todos los batches
-        pattern = os.path.join(model_dir, "batch_*", f"attributions_scores_{filt}_64.txt")
+        pattern = os.path.join(
+            model_dir, "batch_*", f"attributions_scores_{filt}_64.txt"
+        )
         files = glob.glob(pattern)
         if not files:
             continue
@@ -105,7 +114,7 @@ for ax, filter_type in zip(axes, filters):
             width=bar_width,
             label=method,
         )
-    ax.set_title(f"{filter_type}")#.capitalize()}")
+    ax.set_title(f"{filter_type}")  # .capitalize()}")
     ax.set_xticks([x + bar_width for x in x_positions])
     # ax.set_xticklabels(
     #     [m for m in models], rotation=45, ha="center"

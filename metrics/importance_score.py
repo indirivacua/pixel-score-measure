@@ -61,17 +61,32 @@ class ImportanceScore(Metric):
         steps = n_steps + 1
         device = self.inputs.device
 
-        heatmaps_flat = self.heatmaps.view(batch_size, -1)  # (B, H*W)
+        coord_grid = torch.stack(
+            torch.meshgrid(
+                torch.arange(H, device=device),
+                torch.arange(W, device=device),
+                indexing="ij",
+            ),
+            dim=0,
+        )  # (2, H, W)
+        coord_flat = coord_grid.view(2, -1).permute(1, 0)  # (H*W, 2)
 
-        random_values = 0#torch.rand(heatmaps_flat.shape, device=device)
+        heatmaps_flat = self.heatmaps.view(batch_size, -1)  # (B, H*W)
+        random_values = torch.rand(heatmaps_flat.shape, device=device)
         tie_breaker = 1e-6 * random_values
         heatmaps_with_tie_break = heatmaps_flat + tie_breaker
 
-        sorted_heatmaps, _ = torch.sort(
-            heatmaps_with_tie_break, dim=1
-        )  # Ascending: min to max
-
-        curves = torch.zeros((batch_size, steps, 2), device=device)
+        # Ordenar por importancia
+        if mode == "lif":
+            sorted_vals, sorted_indices = torch.sort(
+                heatmaps_with_tie_break, dim=1
+            )  # Ascendente
+        elif mode == "mif":
+            sorted_vals, sorted_indices = torch.sort(
+                heatmaps_with_tie_break, dim=1, descending=True
+            )  # Descendente
+        else:
+            raise ValueError("mode must be 'lif' or 'mif'")
 
         # Set fraction progression based on mode
         if mode == "lif":
@@ -84,16 +99,35 @@ class ImportanceScore(Metric):
             )  # Start at 0.0 (none), end at 1.0 (all)
         else:
             raise ValueError("mode must be 'lif' or 'mif'")
+        curves = torch.zeros((batch_size, steps, 2), device=device)
 
         for step in range(steps):
             f = fractions[step].item()
+            k = int(f * total_pixels)  # Número de píxeles a conservar
 
-            if step == 0:
-                mask = torch.ones((batch_size, H, W), device=device)
-            else:
-                idx = max(0, min(total_pixels - 1, int((1 - f) * total_pixels)))
-                thresholds = sorted_heatmaps[:, idx]  # (B,)
-                mask = (self.heatmaps >= thresholds.view(-1, 1, 1)).float()
+            # Crear máscara vacía
+            mask = torch.zeros((batch_size, H, W), device=device, dtype=torch.float)
+
+            if k > 0:
+                # Obtener índices de los píxeles a conservar
+                if mode == "lif":
+                    # Conservar los píxeles más importantes (últimos k)
+                    selected_flat_idx = sorted_indices[:, -k:]  # (B, k)
+                elif mode == "mif":
+                    # Conservar los píxeles más importantes (primeros k)
+                    selected_flat_idx = sorted_indices[:, :k]  # (B, k)
+                else:
+                    raise ValueError("mode must be 'lif' or 'mif'")
+
+                # Convertir índices planos a coordenadas espaciales
+                for b in range(batch_size):
+                    # Obtener coordenadas para los índices seleccionados
+                    selected_coords = coord_flat[selected_flat_idx[b]]  # (k, 2)
+                    i_coords = selected_coords[:, 0].long()
+                    j_coords = selected_coords[:, 1].long()
+
+                    # Activar píxeles en las coordenadas
+                    mask[b, i_coords, j_coords] = 1.0
 
             if self.blur_sigma is not None:
                 masked_inputs = (
