@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from typing import List, Callable, Optional
 from .metrics import Metric
 from torchvision.transforms import GaussianBlur
+import math
 
 
 class ImportanceScore(Metric):
@@ -61,6 +62,7 @@ class ImportanceScore(Metric):
         steps = n_steps + 1
         device = self.inputs.device
 
+        # Coordinate grid for mapping flat indices back to 2D
         coord_grid = torch.stack(
             torch.meshgrid(
                 torch.arange(H, device=device),
@@ -72,74 +74,91 @@ class ImportanceScore(Metric):
         coord_flat = coord_grid.view(2, -1).permute(1, 0)  # (H*W, 2)
 
         heatmaps_flat = self.heatmaps.view(batch_size, -1)  # (B, H*W)
-        random_values = torch.rand(heatmaps_flat.shape, device=device)
-        tie_breaker = 1e-6 * random_values
-        heatmaps_with_tie_break = heatmaps_flat + tie_breaker
 
-        # Ordenar por importancia
+        # Sort by importance values
         if mode == "lif":
             sorted_vals, sorted_indices = torch.sort(
-                heatmaps_with_tie_break, dim=1
-            )  # Ascendente
+                heatmaps_flat, dim=1
+            )  # Ascending
         elif mode == "mif":
             sorted_vals, sorted_indices = torch.sort(
-                heatmaps_with_tie_break, dim=1, descending=True
-            )  # Descendente
+                heatmaps_flat, dim=1, descending=True
+            )  # Descending
         else:
             raise ValueError("mode must be 'lif' or 'mif'")
 
-        # Set fraction progression based on mode
+        # Compute chunk size: pixels removed per step ~ total/(steps-1)
+        num_chunks = max(1, steps - 1)
+        chunk_size = math.ceil(total_pixels / num_chunks)
+
+        # Prepare randomized sorted indices, applying tie-breaking only within equal-value blocks
+        rand_sorted_indices = torch.zeros_like(sorted_indices)
+        for b in range(batch_size):
+            vals = sorted_vals[b]
+            idxs = sorted_indices[b]
+
+            # Find boundaries of equal-value blocks
+            diff = vals[1:] != vals[:-1]
+            change_pts = torch.nonzero(diff, as_tuple=False).squeeze() + 1
+            cp_list = change_pts.tolist() if isinstance(change_pts.tolist(), list) else [int(change_pts)]
+            boundaries = [0] + cp_list + [total_pixels]
+
+            reordered = []
+            # Process each value block in original order
+            for start, end in zip(boundaries[:-1], boundaries[1:]):
+                block = idxs[start:end]
+                # Split block into subchunks of size chunk_size
+                subblocks = [block[i : i + chunk_size] for i in range(0, block.numel(), chunk_size)]
+                # If multiple subblocks (i.e., block is larger than chunk_size), shuffle their order
+                if len(subblocks) > 1:
+                    perm = torch.randperm(len(subblocks), device=device)
+                    subblocks = [subblocks[i] for i in perm]
+                # Append subblocks in (possibly shuffled) order
+                for sb in subblocks:
+                    reordered.append(sb)
+
+            # Concatenate all blocks
+            rand_sorted_indices[b] = torch.cat(reordered)
+
+        # Prepare fractions progression
         if mode == "lif":
             fractions = torch.linspace(
                 1.0, 0.0, steps, device=device
-            )  # Start at 1.0 (all), end at 0.0 (none)
-        elif mode == "mif":
+            )
+        else:
             fractions = torch.linspace(
                 0.0, 1.0, steps, device=device
-            )  # Start at 0.0 (none), end at 1.0 (all)
-        else:
-            raise ValueError("mode must be 'lif' or 'mif'")
+            )
+
         curves = torch.zeros((batch_size, steps, 2), device=device)
 
+        # Main loop over fraction steps
         for step in range(steps):
             f = fractions[step].item()
-            k = int(f * total_pixels)  # Número de píxeles a conservar
+            k = int(f * total_pixels)
 
-            # Crear máscara vacía
             mask = torch.zeros((batch_size, H, W), device=device, dtype=torch.float)
-
             if k > 0:
-                # Obtener índices de los píxeles a conservar
+                # Select k pixels in lif/mif
                 if mode == "lif":
-                    # Conservar los píxeles más importantes (últimos k)
-                    selected_flat_idx = sorted_indices[:, -k:]  # (B, k)
-                elif mode == "mif":
-                    # Conservar los píxeles más importantes (primeros k)
-                    selected_flat_idx = sorted_indices[:, :k]  # (B, k)
+                    selected_flat_idx = rand_sorted_indices[:, -k:]
                 else:
-                    raise ValueError("mode must be 'lif' or 'mif'")
-
-                # Convertir índices planos a coordenadas espaciales
+                    selected_flat_idx = rand_sorted_indices[:, :k]
+                # Map to 2D and update mask
                 for b in range(batch_size):
-                    # Obtener coordenadas para los índices seleccionados
-                    selected_coords = coord_flat[selected_flat_idx[b]]  # (k, 2)
-                    i_coords = selected_coords[:, 0].long()
-                    j_coords = selected_coords[:, 1].long()
+                    coords = coord_flat[selected_flat_idx[b]]
+                    mask[b, coords[:, 0].long(), coords[:, 1].long()] = 1.0
 
-                    # Activar píxeles en las coordenadas
-                    mask[b, i_coords, j_coords] = 1.0
-
+            # Apply mask to inputs
             if self.blur_sigma is not None:
-                masked_inputs = (
-                    mask.unsqueeze(1) * self.inputs
-                    + (1 - mask.unsqueeze(1)) * self.blurred_inputs
-                )
+                masked_inputs = mask.unsqueeze(1) * self.inputs + (1 - mask.unsqueeze(1)) * self.blurred_inputs
             else:
                 masked_inputs = mask.unsqueeze(1) * self.inputs
 
+            # Compute model outputs and scores
             with torch.no_grad():
                 outputs = self.model(masked_inputs)
-            scores = outputs[torch.arange(batch_size), self.targets]  # (B,)
+            scores = outputs[torch.arange(batch_size), self.targets]
 
             curves[:, step, 0] = f
             curves[:, step, 1] = scores
