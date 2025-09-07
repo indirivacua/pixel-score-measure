@@ -224,12 +224,17 @@ from base64 import b64encode
 from utils.video import VideoCallback
 from metrics.morph_score import MorphScore
 from metrics.importance_score import ImportanceScore
+from metrics.segment_score import SegmentScore, KmeansConfig
 
-SCORE_KWARGS = {"scores": analyzer.scores, "blur_sigma": 50.0}
+seg_cfg = KmeansConfig(
+    k=25, use_lab=True, add_xy=True, xy_weight=1.0, n_iters=10, seed=0
+)
+SCORE_KWARGS = {"scores": analyzer.scores, "seg_config": seg_cfg, "blur_sigma": 50.0}
 
 SCORE_CLASS = {
     "morph": MorphScore,
     "importance": ImportanceScore,
+    "segment": SegmentScore,
 }.get(args.metric_name, ValueError(f"Unsupported metric name: {args.metric_name}"))
 
 vc = VideoCallback(cmap="gray")

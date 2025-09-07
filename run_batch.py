@@ -11,7 +11,7 @@ date_string = now.strftime("%Y-%m-%d")
 
 # Configuración
 model_names = ["resnet101", "convnext_base", "vit_l_32"]
-metric_names = ["morph", "importance"]
+metric_names = ["morph", "importance", "segment"]
 combinations = list(itertools.product(model_names, metric_names))
 
 script_path = "ablation.py"
